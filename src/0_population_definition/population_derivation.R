@@ -74,9 +74,9 @@ cat(paste0("Removing ", sum(!all_tcodes$pedigree), " participants without pedigr
 all_tcodes <- all_tcodes |> filter(pedigree)
 cat(paste0("Total number of participants: ", nrow(all_tcodes), "\n"))
 
-cat(paste0("Removing ", sum(!all_tcodes$cumulus), " participants without a cumulus reading\n"))
-all_tcodes <- all_tcodes |> filter(cumulus)
-cat(paste0("Total number of participants: ", nrow(all_tcodes), "\n"))
+# cat(paste0("Removing ", sum(!all_tcodes$cumulus), " participants without a cumulus reading\n"))
+# all_tcodes <- all_tcodes |> filter(cumulus)
+# cat(paste0("Total number of participants: ", nrow(all_tcodes), "\n"))
 
 cat(paste0("Removing ", sum(!all_tcodes$analytical_dataset), " participants not valid for an analytical dataset\n"))
 all_tcodes <- all_tcodes |> filter(analytical_dataset)

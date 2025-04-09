@@ -48,6 +48,7 @@ create_analytical_dataset <- function(output, years = NA, min_age = NA, max_age 
       breast_cancer = if_else(
         (str_sub(ICDt, 1, 3) == "C50") |
           (str_sub(ICDt, 1, 3) == "174") |
+          (str_sub(ICDt, 1, 4) == "D050") |
           (str_sub(ICDt, 1, 4) == "D051") |
           (str_sub(ICDt, 1, 4) == "D059") |
           (str_sub(ICDt, 1, 4) == "2330"), 1, 0),
