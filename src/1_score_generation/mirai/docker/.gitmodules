@@ -1,0 +1,6 @@
+[submodule "OncoNet"]
+	path = OncoNet
+	url = git@github.com:yala/Mirai.git
+[submodule "OncoData"]
+	path = OncoData
+	url = git@github.com:yala/OncoData_Public.git
