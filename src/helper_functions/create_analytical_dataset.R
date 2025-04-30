@@ -8,12 +8,14 @@
 #   years - the number of years the analysis will take place over. Will remove any participant with less than that many years follow up (unless they died). NA is a valid option that incdicates the validation will be done over the follow up time.
 #   min_age - minimum age for cohort
 #   max_age - maximum age for cohort
+#   cancer - the cancer we are measuring as an event. Either "breast" or "colorectal" currently
+#   fup_start_date - if not using fupca_start_F, an alternative date to use as the start of follow up
 
 # Function
-create_analytical_dataset <- function(output, years = NA, min_age = NA, max_age = NA, cancer = "breast", data_rf = NULL, data_cancer = NULL, data_fup_start = NULL, data_exclusions = NULL){
+create_analytical_dataset <- function(output, years = NA, min_age = NA, max_age = NA, cancer = "breast", data_rf = NULL, data_cancer = NULL, data_fup_start = NULL, data_exclusions = NULL, fup_start_date = NULL){
   
   # Load in dependent functions
-  # source(r"(C:\Users\rfrost\OneDrive - The Institute of Cancer Research\Documents\Analysis\Functions\Load_RDS_data.R)")
+  source(r"(C:\Users\rfrost\OneDrive - The Institute of Cancer Research\Documents\Analysis\Functions\Load_RDS_data.R)")
   
   # Read in risk factor/cancer data
   if(is.null(data_rf)){
@@ -33,6 +35,13 @@ create_analytical_dataset <- function(output, years = NA, min_age = NA, max_age 
     data_exclusions <- read.csv("R:/RDSExclusions.csv")
   }
   
+  # If fup_start_date variable chosen - check it has been selected in output
+  if(!is.null(fup_start_date)){
+    if(!fup_start_date %in% names(output)){
+      stop(paste0("ERROR: ", fup_start_date, " not found in output"))
+    }
+  }
+  
   # Need to grab age at event (invasive cancer) and whether it was a breast cancer or not
   data_cancer <- data_cancer %>%
     mutate(
@@ -43,7 +52,7 @@ create_analytical_dataset <- function(output, years = NA, min_age = NA, max_age 
       
       date_diag = as.Date(diagdate_f, format = "%Y-%m-%d %H:%M:%S"),
       
-      # Invasive or DCIS-breast cancer
+      # Invasive or DCIS-breast cancer or  LCIS-breast cancer
       # NOTE: is this the right response variable?
       breast_cancer = if_else(
         (str_sub(ICDt, 1, 3) == "C50") |
@@ -78,8 +87,18 @@ create_analytical_dataset <- function(output, years = NA, min_age = NA, max_age 
     select(TCode, date_diag, !!sym(paste0(cancer, "_cancer")), diagyear)
   
   
+  # merge fup start into dataset if needed
+  if(!is.null(fup_start_date)){
+    study.data <- data_rf |>
+      merge(select(output, TCode, !!sym(fup_start_date)), all.y = T) |>
+      select(-fupca_start_F) |>
+      rename(fupca_start_F = !!sym(fup_start_date))
+  } else {
+    study.data <- data_rf
+  }
+  
   # merge cancers into main dataset
-  study.data <- data_rf |>
+  study.data <- study.data |>
     merge(data_cancer, by.x = "TCode", by.y = "TCode", all.x = T) |>
     merge(data_fup_start, by = "TCode", all.x = T) |>
     crosstable::remove_labels() |>
