@@ -131,6 +131,7 @@ ggplot(study.data.fup |> filter(case_control_status == 1), aes(x = time.of.onset
   geom_vline(xintercept = 3, colour = "red", linetype = "dashed")
 
 
+
 # Calculate AUCs
 for(risk_score in c("absrisk_5_tc", "absrisk_5_mirai", "Cumulus_Reading")){
   
