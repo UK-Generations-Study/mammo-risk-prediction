@@ -59,7 +59,7 @@ data_images_dates <- data_images |>
 # Merging back into study.data and creating an analytical study population
 study.data.fup <- study.data |>
   merge(data_images_dates, by = "TCode") |>
-  do(create_analytical_dataset(., years = 5, cancer = "breast", fup_start_date = "StudyDate_m", data_cancer = data_cancer)) |>
+  do(create_analytical_dataset(., years = NA, cancer = "breast", fup_start_date = "StudyDate_m", data_cancer = data_cancer)) |>
   rename(absrisk_5_mirai = absrisk_5) |>
   merge(select(risk_tc, TCode, absrisk_5_tc = absrisk_5), by = "TCode") |>
   merge(risk_cumulus, by = "TCode", all.x = T)
@@ -126,8 +126,9 @@ cat(paste0("Number of participants: ", nrow(study.data.fup)))
 table(study.data.fup$case_control_status)
 summary(study.data.fup$time.of.onset[study.data.fup$case_control_status == 1])
 ggplot(study.data.fup |> filter(case_control_status == 1), aes(x = time.of.onset)) + 
-  geom_density() +
-  theme_minimal()
+  geom_density(bw = 0.05) +
+  theme_minimal() +
+  geom_vline(xintercept = 3, colour = "red", linetype = "dashed")
 
 
 # Calculate AUCs

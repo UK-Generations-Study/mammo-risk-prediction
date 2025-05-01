@@ -209,3 +209,62 @@ create_analytical_dataset <- function(output, years = NA, min_age = NA, max_age 
   return(study.data_7)
   
 }
+
+get_earliest_cancer <- function(data_cancer = NULL, cancer = "breast"){
+  
+  # Read in data
+  if(is.null(data_cancer)){
+    
+    # Load in data_cancer
+    data_cancer <- read.csv("//rds/data/DGE/DUDGE/Shared/GENERATIONS/CoreData/v20230927/RDSCaSummary_V1.csv")
+    
+  }
+  
+  # Need to grab age at event (invasive cancer) and whether it was a breast cancer or not
+  data_cancer <- data_cancer %>%
+    filter(!is.null(TCode)) |>
+    mutate(
+      # Create new variables and recode position 0 to 999
+      # so 'no registry' or 'no reported' info is last
+      reginfo_clusterino99 = ifelse(Reginfo_Clusterino == 0, 999, Reginfo_Clusterino),
+      report_cluster99 = ifelse(Report_Cluster == 0, 999, Report_Cluster),
+      
+      date_diag = as.Date(diagdate_f, format = "%Y-%m-%d %H:%M:%S"),
+      
+      # Invasive or DCIS-breast cancer or  LCIS-breast cancer
+      # NOTE: is this the right response variable?
+      breast_cancer = if_else(
+        (str_sub(ICDt, 1, 3) == "C50") |
+          (str_sub(ICDt, 1, 3) == "174") |
+          (str_sub(ICDt, 1, 4) == "D050") |
+          (str_sub(ICDt, 1, 4) == "D051") |
+          (str_sub(ICDt, 1, 4) == "D059") |
+          (str_sub(ICDt, 1, 4) == "2330"), 1, 0),
+      
+      # Invasive colorectal cancer
+      colorectal_cancer = if_else(
+        (str_sub(ICDt, 1, 3) == "C18") |
+          (str_sub(ICDt, 1, 3) == "C19") |
+          (str_sub(ICDt, 1, 3) == "C20") |
+          (str_sub(ICDt, 1, 3) == "153") |
+          (str_sub(ICDt, 1, 3) == "154"), 1, 0)
+      
+    )
+  
+  # Select first (per woman)
+  # ! This is an analysis specific decision
+  # ! different analyses may want different selection criteria
+  # Only care about breast cancers in this case
+  data_cancer <- data_cancer %>%
+    filter(!!sym(paste0(cancer, "_cancer")) == 1) |>
+    arrange(TCode, date_diag, reginfo_clusterino99, report_cluster99) %>%
+    group_by(TCode) %>%
+    mutate(n_tcode = order(TCode)) %>%
+    filter(n_tcode == 1) %>%
+    ungroup() |>
+    select(TCode, date_diag, !!sym(paste0(cancer, "_cancer")), diagyear)
+  
+  return(data_cancer)
+  
+  
+}
