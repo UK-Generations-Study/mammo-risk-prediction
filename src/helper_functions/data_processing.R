@@ -52,11 +52,11 @@ create_analytical_dataset <- function(output, years = NA, min_age = NA, max_age 
   # merge fup start into dataset if needed
   if(!is.null(fup_start_date)){
     study.data <- data_rf |>
-      merge(select(output, TCode, !!sym(fup_start_date)), all.y = T) |>
+      merge(output, by ='TCode', all.y=T) |> #select(output, TCode, !!sym(fup_start_date)), all.y = T) |>
       select(-fupca_start_F) |>
       rename(fupca_start_F = !!sym(fup_start_date))
   } else {
-    study.data <- data_rf
+    study.data <- data_rf |> merge(output, by ='TCode', all.y=T)
   }
   
   # merge cancers into main dataset
@@ -83,9 +83,9 @@ create_analytical_dataset <- function(output, years = NA, min_age = NA, max_age 
       
     )
   
-  # Merge output into study.data
-  study.data <- study.data |>
-    merge(output, by = "TCode", all.y = T)
+  # # Merge output into study.data
+  # study.data <- study.data |>
+  #   merge(output, by = "TCode", all.y = T) 
   
   
   
@@ -206,6 +206,13 @@ get_earliest_cancer <- function(data_cancer = NULL, cancer = "breast"){
           (str_sub(ICDt, 1, 4) == "D050") |
           (str_sub(ICDt, 1, 4) == "D051") |
           (str_sub(ICDt, 1, 4) == "D059") |
+          (str_sub(ICDt, 1, 4) == "2330"), 1, 0),
+      
+      # All cancers of the breast
+      all_breast_cancer = if_else(
+        (str_sub(ICDt, 1, 3) == "C50") |
+          (str_sub(ICDt, 1, 3) == "174") |
+          (str_sub(ICDt, 1, 4) == "D05") | # Capture all in situs
           (str_sub(ICDt, 1, 4) == "2330"), 1, 0),
       
       # Invasive colorectal cancer
