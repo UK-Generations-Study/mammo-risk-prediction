@@ -1,14 +1,21 @@
 library(dplyr)
+library(readr)
 library(ggplot2)
+library(sqldf)
 library(lubridate)
+library(crosstable)
+library(stringr)
+library(Hmisc)
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+source('../helper_functions/data_processing.R')
 
-data_mammo_images_fn <- r"(R:\Shared\GENERATIONS\CoreData\v20230927\RDSCCMammoImages_v1.csv)"
+data_mammo_images_fn <- r"(\\rds\Data\DGE\DUDGE\Shared\GENERATIONS\CoreData\v20230927\RDSCCMammoImages_v1.csv)"
 data_mammo_images <- read.csv(data_mammo_images_fn, stringsAsFactors = FALSE)
 
-data_mammo_cumulus_fn <- r"(R:\Shared\GENERATIONS\CoreData\v20230927\RDSCCMammoCumulus_v1.csv)"
+data_mammo_cumulus_fn <- r"(\\rds\Data\DGE\DUDGE\Shared\GENERATIONS\CoreData\v20230927\RDSCCMammoCumulus_v1.csv)"
 data_mammo_cumulus <- read.csv(data_mammo_cumulus_fn, stringsAsFactors = FALSE)
 
-data_mammo_set_fn <- r"(R:\Shared\GENERATIONS\CoreData\v20230927\RDSCCMammoSet_v1.csv)"
+data_mammo_set_fn <- r"(\\rds\Data\DGE\DUDGE\Shared\GENERATIONS\CoreData\v20230927\RDSCCMammoSet_v1.csv)"
 data_mammo_set <- read.csv(data_mammo_set_fn, stringsAsFactors = FALSE)
 
 # ------------------------- #
@@ -80,47 +87,102 @@ table(sanity_check_digitised$SCDManuModelName)
 table(sanity_check_digitised$DetectorType)
 # All in fact digital.
 
+# 6. ! prior history of breast cancer (including sarcomas of the breast)   ("to enable fair comparison against the Tyrer-Cuzick model")
+data_cancer <- read.csv("//rds/data/DGE/DUDGE/Shared/GENERATIONS/CoreData/v20230927/RDSCaSummary_V1.csv")
+# subset_step5_lateststudy <- subset_step5 %>%
+#   group_by(TCode) %>%
+#   filter(StudyDate_m_fmt == max(StudyDate_m_fmt, na.rm = TRUE)) %>%
+#   ungroup()
+# write.csv(subset_step5_lateststudy[,'SOPInstanceUID',drop=F], r"(../../../data/eligible_dicomuids_lateststudy3.csv)", row.names=F)
+data_images_dates <- data_mammo_images|>
+  filter(SOPInstanceUID %in% subset_step5$SOPInstanceUID) |>
+  group_by(SOPInstanceUID) |>
+  summarise(StudyDate_m = as.Date(unique(StudyDate_m), format = "%d/%m/%Y")) |>
+  ungroup()
+
+subset_step6 <- subset_step5 %>% dplyr::select(-StudyDate_m) |> 
+  merge(data_images_dates, by = "SOPInstanceUID") |>
+  do(create_analytical_dataset(., years = NA, cancer = "all_breast", fup_start_date = "StudyDate_m", data_cancer = data_cancer))
+
+subset_step6 <- subset_step6 %>%
+  dplyr::select(-setdiff(setdiff(colnames(subset_step6), colnames(subset_step5)), c('fupca_end_reason', 'study.exit.age', 'study.entry.age')))
+
+#### -- sAnItY check -- ####
+
+# subset_step6_breast <- subset_step5 %>% dplyr::select(-StudyDate_m) |> 
+#   merge(data_images_dates, by = "SOPInstanceUID") |>
+#   do(create_analytical_dataset(., years = NA, cancer = "breast", fup_start_date = "StudyDate_m", data_cancer = data_cancer))
+# 
+# subset_step6_datediag <- subset_step6 %>% group_by(TCode) %>% summarise(date_diag = unique(date_diag))
+# subset_step6_breast_datediag <- subset_step6_breast %>% group_by(TCode) %>% summarise(date_diag = unique(date_diag))
+# merged <- subset_step6_breast_datediag %>% left_join(subset_step6_datediag, by='TCode')
+# any(merged$date_diag.y < merged$date_diag.x, na.rm=T)
+# 
+# subset_step6 <- get_earliest_cancer(data_cancer = data_cancer, cancer = 'breast')
+# 
+# get_earliest_cancer(data_cancer = data_cancer, cancer = 'breast')
+
+#### -- sAnItY check -- ####
+
+# 7. ! patients who did not have at least 1 year of screening follow-up (ie., died)
+# study.exit.age - study.entry.age < 1 & fupca_end_reason == 22
+subset_step7a <- subset_step6 %>% filter(!(study.exit.age - study.entry.age < 1 & fupca_end_reason == 22))
+
+# 8. For Strategy B: Dropping mammogram studies taken less than 1 year before an invasive/in situ breast cancer cancer diagnosis.
+subset_step7b <- subset_step7_a %>% left_join(get_earliest_cancer(data_cancer = data_cancer, cancer = 'breast') %>% 
+                                             dplyr::select(TCode, date_diag), by ='TCode') %>%
+  filter(is.na(date_diag) | time_length(interval(StudyDate_m_fmt, date_diag), "year") >= 1)
+# with(subset_step7 %>% left_join(get_earliest_cancer(data_cancer = data_cancer, cancer = 'breast') %>% 
+# dplyr::select(TCode, date_diag), by ='TCode') %>% mutate(diff = time_length(interval(StudyDate_m_fmt, date_diag), "year")), hist(diff, breaks=20))
+
+# Finally:
 # Export unique TCodes
-subset_step5_tcodes <- unique(subset_step5[,'TCode'])
+subset_step7a_tcodes <- unique(subset_step7a[,'TCode'])
 setwd(dirname(rstudioapi::getSourceEditorContext()$path))
-write.csv(subset_step5_tcodes, r"(../../../data/eligible_tcodes.csv)", row.names=F)
+write.csv(subset_step7a_tcodes, r"(../../../data/eligible_tcodes.csv)", row.names=F)
 
-subset_step5_tcodes <- read.csv(r"(../../../data/eligible_tcodes.csv)")
-
-# 6. ! patients who did not have at least 1 year of screening follow-up
-# Subsetting performed in a separate script.
-
-# 7. ! who were diagnosed with other cancers such as sarcomas of the breast
-# Subsetting performed in a separate script.
-
-# 8. prior history of breast cancer ("to enable fair comparison against the Tyrer-Cuzick model")
-# Subsetting performed in a separate script.
-
+subset_step7a_tcodes <- read.csv(r"(../../../data/eligible_tcodes.csv)")
 
 # ------------------------- #
 # B. Selecting studies
 # ------------------------- #
 
 # How many studies per participant?
-subset_step5 %>% group_by(TCode) %>% summarise(Studies = length(unique(StudyIndex)))
+subset_step7a %>% group_by(TCode) %>% summarise(Studies = length(unique(StudyIndex)))
+subset_step7b %>% group_by(TCode) %>% summarise(Studies = length(unique(StudyIndex)))
 
 # Filtering to studies with at least 4 views
+# subset_step5 %>% group_by(TCode, StudyIndex) %>% summarise(DICOMs = n()) # All have at least 4.
 
+# Two subsetting strategies to select one study per participant:
+# Subset A: Latest DICOM studies (take the most recent DICOM study)
 # Selecting only the latest study
-subset_step6 <- subset_step5 %>%
+subset_step8a <- subset_step7a %>%
   group_by(TCode) %>%
   filter(StudyDate_m_fmt == max(StudyDate_m_fmt, na.rm = TRUE)) %>%
   ungroup()
+subset_step8b <- subset_step7b %>%
+  group_by(TCode) %>%
+  filter(StudyDate_m_fmt == max(StudyDate_m_fmt, na.rm = TRUE)) %>%
+  ungroup()
+length(setdiff(subset_step8b$SOPInstanceUID, subset_step8a$SOPInstanceUID))
 
-# The number of DICOMs we have for each study (some have extra L/R MLO/CC views)
-View(subset_step6 %>%
-       group_by(TCode, StudyIndex) %>%
-       summarise(DICOMs = n()) %>% arrange(desc(DICOMs)))
+# # To sanity check, the different DICOMs in B come from participants that in A had their mammogram study LATER ONLY.
+# extra_dicoms_to_request <- setdiff(subset_step8b$SOPInstanceUID, subset_step8a$SOPInstanceUID)
+# extra_dicoms_to_request_tcodes <- unique(extra_dicoms_to_request$TCode)
+# subset_step8a %%
 
-# Confirming one study selected per participant
-with(subset_step6 %>%
-       group_by(TCode, StudyIndex) %>%
-       summarise(DICOMs = n()) %>% arrange(desc(DICOMs)), !any(duplicated(TCode)))
+# # The number of DICOMs we have for each study (some have extra L/R MLO/CC views)
+# View(subset_step6 %>%
+#        group_by(TCode, StudyIndex) %>%
+#        summarise(DICOMs = n()) %>% arrange(desc(DICOMs)))
+# 
+# # Confirming one study selected per participant
+# with(subset_step6 %>%
+#        group_by(TCode, StudyIndex) %>%
+#        summarise(DICOMs = n()) %>% arrange(desc(DICOMs)), !any(duplicated(TCode)))
+
+# Subset B: Drop all studies within one year preceding earliest breast cancer diagnosis 
 
 # ------------------------- #
 # C. Selecting DICOMs
