@@ -78,7 +78,6 @@ create_analytical_dataset <- function(output, years = NA, min_age = NA, max_age 
   # Only care about breast cancers in this case
   data_cancer <- data_cancer %>%
     filter(!!sym(paste0(cancer, "_cancer")) == 1) |>
-    # filter(breast_cancer == 1) %>%
     arrange(TCode, date_diag, reginfo_clusterino99, report_cluster99) %>%
     group_by(TCode) %>%
     mutate(n_tcode = order(TCode)) %>%
@@ -110,14 +109,12 @@ create_analytical_dataset <- function(output, years = NA, min_age = NA, max_age 
       
       observed.outcome = ifelse(is.na(!!sym(paste0(cancer, "_cancer"))), 0, !!sym(paste0(cancer, "_cancer"))),
       
-      # study.entry.age = QR0_Age,
       study.entry.age = time_length(interval(start = ADOB_F, end = fupca_start_F), unit = "years"),
       
       age.at.onset = case_when(
         is.na(date_diag) ~ NA,
         TRUE ~ time_length(interval(ADOB_F, date_diag), unit = "years")),
       
-      # study.exit.age = fupca_end_age,
       study.exit.age = time_length(interval(start = ADOB_F, end = fupca_end_F), unit = "years"),
       
       
