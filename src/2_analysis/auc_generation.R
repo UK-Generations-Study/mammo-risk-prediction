@@ -77,8 +77,8 @@ study.data.fup <- study.data.fup |>
 
 # Removing participants who die within a year
 # NOTE: This is true as only participants left with time.of.onset < 5 are those who died in that window
-cat(paste0("Removing ", study.data.fup |> filter((study.exit.age - study.entry.age < 1)) |> nrow(), " participants who die within one year of follow up"))
-study.data.fup <- filter(study.data.fup, !(study.exit.age - study.entry.age < 1))
+cat(paste0("Removing ", study.data.fup |> filter((study.exit.age - study.entry.age < 1 & fupca_end_reason == 22)) |> nrow(), " participants who die within one year of follow up"))
+study.data.fup <- filter(study.data.fup, !(study.exit.age - study.entry.age < 1 & fupca_end_reason == 22))
 cat(paste0("Number of participants: ", nrow(study.data.fup)))
 
 # Removing participants with any prior breast cancer
