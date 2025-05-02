@@ -129,12 +129,12 @@ subset_step6 <- subset_step6 %>%
 subset_step7a <- subset_step6 %>% filter(!(study.exit.age - study.entry.age < 1 & fupca_end_reason == 22))
 
 # 8. For Strategy B: Dropping mammogram studies taken less than 1 year before an invasive/in situ breast cancer cancer diagnosis.
-subset_step7b <- subset_step7a %>% left_join(get_earliest_cancer(data_cancer = data_cancer, cancer = 'breast') %>% 
+subset_step7b <- subset_step7a %>% left_join(get_earliest_cancer(data_cancer = data_cancer, cancer = 'inv_DCIS_LCIS_breast') %>% 
                                              dplyr::select(TCode, date_diag), by ='TCode') %>%
   filter(is.na(date_diag) | time_length(interval(StudyDate_m_fmt, date_diag), "year") >= 1)
 # with(subset_step7 %>% left_join(get_earliest_cancer(data_cancer = data_cancer, cancer = 'breast') %>% 
 # dplyr::select(TCode, date_diag), by ='TCode') %>% mutate(diff = time_length(interval(StudyDate_m_fmt, date_diag), "year")), hist(diff, breaks=20))
-setdiff(subset_step7a$TCode, subset_step7b$TCode) # 162 participants' only mammogram study was within 1 yr prior to diagnosis
+setdiff(subset_step7a$TCode, subset_step7b$TCode) # Participants whose only mammogram study was within 1 yr prior to diagnosis
 
 # Finally:
 # Export unique TCodes
@@ -241,4 +241,11 @@ View(subset_step9b %>%
 
 # Exporting list of DICOM identifiers
 setwd(dirname(rstudioapi::getSourceEditorContext()$path))
-write.csv(subset_step7[,'SOPInstanceUID',drop=F], r"(../../../data/eligible_dicomuids.csv)", row.names=F)
+write.csv(subset_step9a[,'SOPInstanceUID',drop=F], r"(../../../data/eligible_dicomuids_strategyA.csv)", row.names=F)
+write.csv(subset_step9b[,'SOPInstanceUID',drop=F], r"(../../../data/eligible_dicomuids_strategyB.csv)", row.names=F)
+
+previously_requested_uids <- read.csv(r"(../../../data/eligible_dicomuids.csv)")
+c(subset_step9a$SOPInstanceUID, subset_step9b$SOPInstanceUID)
+new_uids <- setdiff(c(subset_step9a$SOPInstanceUID, subset_step9b$SOPInstanceUID), previously_requested_uids$SOPInstanceUID)
+write.csv(data.frame(SOPInstanceUID=new_uids), r"(../../../data/eligible_dicomuids_new.csv)", row.names=F)
+
