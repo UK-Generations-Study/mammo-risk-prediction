@@ -199,20 +199,20 @@ get_earliest_cancer <- function(data_cancer = NULL, cancer = "breast"){
       date_diag = as.Date(diagdate_f, format = "%Y-%m-%d %H:%M:%S"),
       
       # Invasive or DCIS-breast cancer or  LCIS-breast cancer
-      # NOTE: is this the right response variable?
-      breast_cancer = if_else(
+      inv_DCIS_LCIS_breast_cancer = if_else(
         (str_sub(ICDt, 1, 3) == "C50") |
           (str_sub(ICDt, 1, 3) == "174") |
           (str_sub(ICDt, 1, 4) == "D050") |
           (str_sub(ICDt, 1, 4) == "D051") |
           (str_sub(ICDt, 1, 4) == "D059") |
+          (str_sub(ICDt, 1, 4) == "D05Z") |
           (str_sub(ICDt, 1, 4) == "2330"), 1, 0),
       
       # All cancers of the breast
       all_breast_cancer = if_else(
         (str_sub(ICDt, 1, 3) == "C50") |
           (str_sub(ICDt, 1, 3) == "174") |
-          (str_sub(ICDt, 1, 4) == "D05") | # Capture all in situs
+          (str_sub(ICDt, 1, 3) == "D05") | # Capture all in situs
           (str_sub(ICDt, 1, 4) == "2330"), 1, 0),
       
       # Invasive colorectal cancer
@@ -263,6 +263,20 @@ get_earliest_cancer <- function(data_cancer = NULL, cancer = "breast"){
 #' riskfactors <- load_RDS_data("v20230927", "RDSRiskFactors.csv")
 
 load_RDS_data <- function(RDS_VERSION, CSV_DATA_FILE_NAME) {
+  
+  # List of packages needed for function
+  req.packages <- c("readr", "dplyr", "sqldf", "Hmisc")
+  
+  # Loop through each library in the list
+  for (lib in req.packages) {
+    if (!requireNamespace(lib, quietly = TRUE)) {
+      install.packages(lib)
+      library(lib, character.only = TRUE)
+    } else {
+      library(lib, character.only = TRUE)
+    }
+  }
+  
   # Read data dictionary from frozen RDS rollout
   ddfields <- read_data_dictionary(RDS_VERSION)
   # Read variable names from frozen CSV data file
