@@ -16,7 +16,7 @@ library(crosstable)
 library(readxl)
 library(Hmisc)
 library(nftbart)
-library(BCRA)
+library(BCRA) # GAIL SCORE
 
 
 ## Set working directory
@@ -25,6 +25,7 @@ setwd(dirname(rstudioapi::getSourceEditorContext()$path))
 ## Functions
 source("../helper_functions/create_analytical_dataset.R")
 source("../helper_functions/Load_RDS_data.R")
+source("../1_score_generation/GAIL_score_generation.R")
 
 ## Reading in data
 
@@ -39,12 +40,6 @@ eligible_dicom[["B"]] <- read.csv("../../../data/eligible_dicomuids_strategyB.cs
 # Mammo images
 data_images <- read.csv("//rds/data/DGE/DUDGE/Shared/GENERATIONS/CoreData/v20230927/RDSCCMammoImages_v1.csv")
 
-# TEMPORARY
-tcodes_B <- data_images |>
-  filter(SOPInstanceUID %in% eligible_dicom[["B"]]$SOPInstanceUID) |>
-  pull(TCode) |>
-  unique()
-
 # Cumulus scores
 data_cumulus <- read.csv("//rds/data/DGE/DUDGE/Shared/GENERATIONS/CoreData/v20230927/RDSCCMammoCumulus_v1.csv")
 
@@ -54,7 +49,6 @@ for(strategy in names(eligible_dicom)){
   
   # Get fup start dates from mammograms
   data_images_dates <- data_images |>
-    filter(TCode %in% tcodes_B) |>
     filter(SOPInstanceUID %in% eligible_dicom[[strategy]]$SOPInstanceUID) |>
     group_by(TCode) |>
     summarise(StudyDate_m = as.Date(unique(StudyDate_m), format = "%d/%m/%Y")) |>
@@ -73,6 +67,15 @@ for(strategy in names(eligible_dicom)){
     filter(Reader_ID != "JW") |>
     group_by(TCode) |>
     summarise(cumulus_reading = mean(Cumulus_Reading, na.rm = T))
+   
+  # # All Cumulus scores
+  # cumulus_scores_all <- data_cumulus |>
+  #   filter(TCode %in% study.data$TCode) |>
+  #   filter(Reader_ID != "JW") |>
+  #   group_by(TCode) |>
+  #   summarise(cumulus_reading = mean(Cumulus_Reading, na.rm = T))
+  # 
+  # print(nrow(cumulus_scores_all))
   
   study.data.3 <- study.data.2 |>
     merge(cumulus_scores, by = "TCode", all.x = T)
@@ -101,15 +104,17 @@ for(strategy in names(eligible_dicom)){
       
     )
   
+  # Loop through scores calculating relevant metrics
   for(score in c("gail_score", "cumulus_reading")){
     
     auc <- suppressWarnings(auc(study.data.5$case_control_status, study.data.5[[score]]))
-    ci <- ci(auc)
+    ci <- pROC::ci(auc)
     
     concordance_index <- with(study.data.5 |> filter(!is.na(!!sym(score))) |> mutate(score = !!sym(score)), Cindex(risk = score, times = time.ci, delta = case_control_status))
     
+    # Bootstrapping for C-Index
     ci_sample <- numeric(0)
-    for(i in 1:10000){
+    for(i in 1:100){
       ci_sample[i] <- with(study.data.5 |> filter(!is.na(!!sym(score))) |> mutate(score = !!sym(score)) |> sample_n(size = n(), replace = T), Cindex(risk = score, times = time.ci, delta = case_control_status))
     }
     
