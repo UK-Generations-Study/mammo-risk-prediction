@@ -141,6 +141,8 @@ setdiff(subset_step7a$TCode, subset_step7b$TCode) # Participants whose only mamm
 subset_step7a_tcodes <- unique(subset_step7a[,'TCode'])
 setwd(dirname(rstudioapi::getSourceEditorContext()$path))
 write.csv(subset_step7a_tcodes, r"(../../../data/eligible_tcodes.csv)", row.names=F)
+# Export all possible studies
+write.csv(subset_step7a[,'SOPInstanceUID',drop=F], r"(../../../data/all_eligible_dicomuids.csv)", row.names=F)
 
 # ------------------------- #
 # B. Selecting studies
