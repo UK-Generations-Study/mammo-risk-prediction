@@ -108,7 +108,11 @@ for(strategy in names(eligible_dicom)){
         TRUE ~ 1
       ),
       
-      time.ci = pmin(time.of.onset, 5)
+      #time.ci = pmin(time.of.onset, 5)
+      time.ci = case_when(
+        case_control_status == 0 ~ pmin(study.exit.age - study.entry.age, 5),
+        TRUE ~ pmin(time.of.onset, 5)
+      )
       
     )
   
@@ -137,7 +141,29 @@ for(strategy in names(eligible_dicom)){
     
   }
   
+  # Calibration plots
+  calibration <- study.data.5 %>% 
+    mutate(decile = ntile(mirai_score_5y, 10)) %>% 
+    group_by(decile) %>% 
+    summarise(
+      expected = mean(mirai_score_5y, na.rm = TRUE), 
+      observed = mean(case_control_status == 1, na.rm = TRUE)
+    )
+  print(paste0('Calibration of Mirai risk scores for strategy ', strategy, ':'))
+  print(calibration)
   
-  
-  
+  # ggplot(calibration, aes(y = observed, x = expected)) +
+  #   geom_point(size = 3) +
+  #   geom_line() +
+  #   geom_abline(intercept = 0, slope = 1, linetype = "dashed", colour = "grey50") +
+  #   ylim(c(0, 1)) + xlim(c(0, 1)) +
+  #   labs(
+  #     x = "Mirai score",
+  #     y = "Observed probability",
+  #     title = "Calibration of 5-year Mirai Risk Score by Decile"
+  #   ) +
+  #   theme_minimal() + theme(panel.border = element_rect(color='black', fill=NA))  
+
 }
+
+
