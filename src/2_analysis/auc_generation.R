@@ -141,28 +141,24 @@ for(strategy in names(eligible_dicom)){
     
   }
   
-  # Calibration plots
+  overall_expected <- mean(study.data.5$mirai_score_5y, na.rm = TRUE)
+  overall_observed <- mean(study.data.5$case_control_status == 1, na.rm = TRUE)
+  
   calibration <- study.data.5 %>% 
     mutate(decile = ntile(mirai_score_5y, 10)) %>% 
     group_by(decile) %>% 
     summarise(
       expected = mean(mirai_score_5y, na.rm = TRUE), 
-      observed = mean(case_control_status == 1, na.rm = TRUE)
+      observed = mean(case_control_status == 1, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    mutate(
+      predicted_rr = expected / overall_expected,
+      observed_rr = observed / overall_observed
     )
-  print(paste0('Calibration of Mirai risk scores for strategy ', strategy, ':'))
-  print(calibration)
   
-  # ggplot(calibration, aes(y = observed, x = expected)) +
-  #   geom_point(size = 3) +
-  #   geom_line() +
-  #   geom_abline(intercept = 0, slope = 1, linetype = "dashed", colour = "grey50") +
-  #   ylim(c(0, 1)) + xlim(c(0, 1)) +
-  #   labs(
-  #     x = "Mirai score",
-  #     y = "Observed probability",
-  #     title = "Calibration of 5-year Mirai Risk Score by Decile"
-  #   ) +
-  #   theme_minimal() + theme(panel.border = element_rect(color='black', fill=NA))  
+  print(paste0('Relative Risk Calibration of Mirai risk scores for strategy ', strategy, ':'))
+  print(calibration)
 
 }
 
