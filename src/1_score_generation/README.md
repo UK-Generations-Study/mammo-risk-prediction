@@ -15,7 +15,7 @@ OncoServe 0.5.0 was used in this study.
 ##### Execution
 
 Enter the docker container:
-```docker run -it -v /local/data/directory:/data:z -v /local/output/directory:/output:z learn2cure/oncoserve_mirai:0.5.0 /bin/zsh```
+```docker run -it --shm-size=8g -v /local/data/directory:/data:z -v /local/output/directory:/output:z learn2cure/oncoserve_mirai:0.5.0 /bin/zsh```
 
 ###### Pre-processing
 
@@ -26,9 +26,9 @@ Following the Mirai Github repository:
 python scripts/dicom_to_png/dicom_to_png.py --dcmtk --dicom_dir /data/input_dir --png_dir /data/output_dir```
 
 In this work:
-1. 3296 / 3384 were converted using the original DCMTK version (3.6.1).
-2. 76 / 3384 were converted using the latest DCMTK version (3.6.9).
-3. 12 / 3384 were corrupted and unrecoverable.
+1. xxxx / xxxx were converted using the original DCMTK version (3.6.1).
+2. xxxx / xxxx were converted using the latest DCMTK version (3.6.9).
+3. 12 / xxxx were corrupted and unrecoverable.
 
 
 ####### Data manifest creation

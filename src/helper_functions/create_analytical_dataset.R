@@ -15,7 +15,8 @@
 create_analytical_dataset <- function(output, years = NA, min_age = NA, max_age = NA, cancer = "breast", data_rf = NULL, data_cancer = NULL, data_fup_start = NULL, data_exclusions = NULL, fup_start_date = NULL){
   
   # Load in dependent functions
-  source(r"(C:\Users\rfrost\OneDrive - The Institute of Cancer Research\Documents\Analysis\Functions\Load_RDS_data.R)")
+  #source(r"(C:\Users\rfrost\OneDrive - The Institute of Cancer Research\Documents\Analysis\Functions\Load_RDS_data.R)")
+  source("../helper_functions/Load_RDS_data.R")
   
   # Read in risk factor/cancer data
   if(is.null(data_rf)){
@@ -32,7 +33,8 @@ create_analytical_dataset <- function(output, years = NA, min_age = NA, max_age 
   }
   
   if(is.null(data_exclusions)){
-    data_exclusions <- read.csv("R:/RDSExclusions.csv")
+    data_exclusions <- read.csv("//rds/data/DGE/DUDGE/Shared/GENERATIONS/RDSExclusions.csv")
+    # 
   }
   
   # If fup_start_date variable chosen - check it has been selected in output

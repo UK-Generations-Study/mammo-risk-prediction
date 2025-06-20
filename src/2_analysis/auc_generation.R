@@ -30,7 +30,14 @@ source("../1_score_generation/GAIL_score_generation.R")
 ## Reading in data
 
 # Risk scores
-risk_mirai <- read.csv("../../../output/risk_scores/mirai_scores.csv")
+load_mirai_score <- function(score_csv) {
+  read.csv(score_csv) %>%
+    rename(TCode = patient_exam_id, mirai_score_5y = X5_year_risk) %>% 
+    mutate(TCode = gsub("([A-Za-z\\d]+)(\t0)", '\\1', TCode, perl=T)) %>%
+    dplyr::select(TCode, mirai_score_5y)
+}
+risk_mirai_strategyA <- load_mirai_score("../../../output/mirai_scores_strategyA.csv")
+risk_mirai_strategyB <- load_mirai_score("../../../output/mirai_scores_strategyB.csv")
 
 # Eligible DICOM UIDS
 eligible_dicom <- list()
@@ -59,7 +66,8 @@ for(strategy in names(eligible_dicom)){
     do(create_analytical_dataset(., years = NA, cancer = "breast", fup_start_date = "StudyDate_m"))
   
   ## ADD IN MIRAI WHEN COMPLETE ##
-  study.data.2 <- study.data
+  study.data.2 <- study.data |>
+    merge(if (strategy == 'A') risk_mirai_strategyA else risk_mirai_strategyB, by='TCode')
   
   # Add in Cumulus scores and report completeness
   cumulus_scores <- data_cumulus |>
@@ -91,7 +99,7 @@ for(strategy in names(eligible_dicom)){
   study.data.4 <- study.data.3 |>
     merge(gail_scores, by = "TCode", all.x = T)
   
-  # For each score (ADD IN MIRAI) calculate CI and AUC (5-year)
+  # Ground truth case-control status
   study.data.5 <- study.data.4 |>
     mutate(
       
@@ -104,8 +112,9 @@ for(strategy in names(eligible_dicom)){
       
     )
   
+  # For each score (ADD IN MIRAI) calculate CI and AUC (5-year)
   # Loop through scores calculating relevant metrics
-  for(score in c("gail_score", "cumulus_reading")){
+  for(score in c("gail_score", "cumulus_reading", "mirai_score_5y")){
     
     auc <- suppressWarnings(auc(study.data.5$case_control_status, study.data.5[[score]]))
     ci <- pROC::ci(auc)
@@ -124,7 +133,7 @@ for(strategy in names(eligible_dicom)){
     
     cat(paste0("AUC for ", score, ": ", round(auc, 5), " (" , paste0(round(ci[-2], 5), collapse = ", "), ")", "\n"))
     
-    cat(paste0("Concordnace Index for ", score, ": ", round(concordance_index, 5), " (" , paste0(round(ci_ci, 5), collapse = ", "), ")","\n"))
+    cat(paste0("Concordance Index for ", score, ": ", round(concordance_index, 5), " (" , paste0(round(ci_ci, 5), collapse = ", "), ")","\n"))
     
   }
   
