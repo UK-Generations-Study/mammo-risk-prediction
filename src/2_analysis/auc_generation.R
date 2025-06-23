@@ -141,24 +141,24 @@ for(strategy in names(eligible_dicom)){
     
   }
   
-  overall_expected <- mean(study.data.5$mirai_score_5y, na.rm = TRUE)
-  overall_observed <- mean(study.data.5$case_control_status == 1, na.rm = TRUE)
-  
-  calibration <- study.data.5 %>% 
-    mutate(decile = ntile(mirai_score_5y, 10)) %>% 
-    group_by(decile) %>% 
-    summarise(
-      expected = mean(mirai_score_5y, na.rm = TRUE), 
-      observed = mean(case_control_status == 1, na.rm = TRUE),
-      .groups = "drop"
-    ) %>%
-    mutate(
-      predicted_rr = expected / overall_expected,
-      observed_rr = observed / overall_observed
-    )
-  
-  print(paste0('Relative Risk Calibration of Mirai risk scores for strategy ', strategy, ':'))
-  print(calibration)
+  # overall_expected <- mean(study.data.5$mirai_score_5y, na.rm = TRUE)
+  # overall_observed <- mean(study.data.5$case_control_status == 1, na.rm = TRUE)
+  # 
+  # calibration <- study.data.5 %>% 
+  #   mutate(decile = ntile(mirai_score_5y, 10)) %>% 
+  #   group_by(decile) %>% 
+  #   summarise(
+  #     expected = mean(mirai_score_5y, na.rm = TRUE), 
+  #     observed = mean(case_control_status == 1, na.rm = TRUE),
+  #     .groups = "drop"
+  #   ) %>%
+  #   mutate(
+  #     predicted_rr = expected / overall_expected,
+  #     observed_rr = observed / overall_observed
+  #   )
+  # 
+  # print(paste0('Relative Risk Calibration of Mirai risk scores for strategy ', strategy, ':'))
+  # print(calibration)
 
 }
 
