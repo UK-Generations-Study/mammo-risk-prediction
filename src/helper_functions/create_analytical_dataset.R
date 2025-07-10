@@ -92,7 +92,8 @@ create_analytical_dataset <- function(output, years = NA, min_age = NA, max_age 
   if(!is.null(fup_start_date)){
     study.data <- data_rf |>
       merge(select(output, TCode, !!sym(fup_start_date)), all.y = T) |>
-      select(-fupca_start_F) |>
+      rename(fupca_start_F_study = fupca_start_F) |>
+      #select(-fupca_start_F) |>
       rename(fupca_start_F = !!sym(fup_start_date))
   } else {
     study.data <- data_rf
