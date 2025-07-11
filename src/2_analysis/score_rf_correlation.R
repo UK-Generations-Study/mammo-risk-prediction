@@ -173,7 +173,8 @@ plot_y_vs_all <- function(
     predictors = c(
       "study.entry.age", "cumulus_reading", "bodysizebminow",
       "meno_age_est", "pregparitycnt", "ocever", "hrtever"
-    )
+    ),
+    time_adjust = F
 ) {
   df_clean <- clean_risk_factors(df)
   
@@ -212,14 +213,17 @@ plot_y_vs_all <- function(
       strip.text = element_text(face = "bold")
     )
   
-  tests <- assoc_tests(df_clean, y, preds)
+  tests <- assoc_tests(df_clean, y, preds, time_adjust = time_adjust)
   
   list(plot = p, tests = tests)
 }
 
 
-correlation <- plot_y_vs_all(study.data.strategyB%>% filter(case_control_status == 0))
+correlation <- plot_y_vs_all(study.data.strategyB%>% filter(case_control_status == 0), time_adjust = F)
 print(correlation$tests)
+correlation_timeadj <- plot_y_vs_all(study.data.strategyB%>% filter(case_control_status == 0), time_adjust = F)
+print(correlation_timeadj$tests)
+
 print(correlation$plot)
 
 # # Association with BMI, after adjusting for density

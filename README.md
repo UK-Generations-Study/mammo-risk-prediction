@@ -69,3 +69,15 @@
 	| pregparity_binary  | lm slope   | 0.00233     | 0.471   |
 	| ocever             | lm slope   | -0.00383    | 0.541   |
 	| hrtever            | lm slope   | 0.00246     | 0.363   |
+	
+	* Associations with MIRAI 5-year risk score (Strategy B, controls only, adjusted by time from baseline to mammography study):
+
+	| Variable           | Test     | Estimate    | p-value |
+	|--------------------|----------|-------------|---------|
+	| study.entry.age    | lm slope | 0.000204    | 0.111   |
+	| cumulus_reading    | lm slope | 0.000242    | 0.0245  |
+	| bodysizebminow     | lm slope | -0.000206   | 0.379   |
+	| meno_age_est       | lm slope | 0.0000934   | 0.700   |
+	| pregparity_binary  | lm slope | 0.00306     | 0.337   |
+	| ocever             | lm slope | -0.00412    | 0.511   |
+	| hrtever            | lm slope | 0.00251     | 0.344   |
