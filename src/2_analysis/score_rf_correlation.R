@@ -13,7 +13,13 @@ library(Hmisc)
 library(nftbart)
 library(BCRA) # GAIL SCORE
 library(GGally)
+library(purrr)
+library(broom)
 
+
+##################
+## LOADING DATA ##
+##################
 
 
 ## Set working directory
@@ -113,123 +119,114 @@ study.data.strategyB <- study.data.strategyB |>
   )
 
 
-# ---------------------------------------------------------------
-# 1. Cleaning helper
-# ---------------------------------------------------------------
+##################
+## CORRELATIONS ##
+##################
+
 clean_risk_factors <- function(df) {
-  df %>% 
+  df %>%
     mutate(
+      menopausal = factor(case_when(
+        R1menopause %in% c(1, 3) ~ TRUE,
+        R1menopause == 2 ~ FALSE,
+        TRUE ~ NA
+      )),
       pregparity_binary = factor(!pregparitycnt %in% c(-1, 99)),
-      bodysizebminow    = na_if(bodysizebminow, 999),
-      menopausal        = factor(ifelse(R1menopause %in% c(1, 3), TRUE, 
-                                        ifelse(R1menopause == 2, FALSE, NA))),
-      hrtever           = ifelse(menopausal==T, hrtever, NA),
-      hrtever           = factor(hrtever),
-      ocever            = ifelse(menopausal==F, ocever, NA),
-      ocever            = factor(ocever),
-      meno_age_est      = ifelse(meno_age_est > df$study.entry.age, NA, meno_age_est),
-      time_start_to_mammo = StudyDate_m - as.Date(fupca_start_F_study)
+      time_start_to_mammo = StudyDate_m - as.Date(fupca_start_F_study),
+      
+      bodysizebminow = na_if(bodysizebminow, 999),
+      meno_age_est = if_else(meno_age_est > study.entry.age, NA_real_, meno_age_est),
+      
+      hrtever = factor(if_else(menopausal == TRUE, hrtever, NA_integer_)),
+      ocever  = factor(if_else(menopausal == FALSE, ocever, NA_integer_))
     )
 }
 
-# ---------------------------------------------------------------
-# 2. Association-test helper
-# ---------------------------------------------------------------
-assoc_tests <- function(df, y, preds, time_adjust=T) {
-  purrr::map_dfr(preds, function(v) {
-  if(time_adjust)
-    mod <- lm(df[[y]] ~ df[[v]] + df$time_start_to_mammo)
-  else 
-    mod <- lm(df[[y]] ~ df[[v]])
-  tt  <- summary(mod)$coefficients[2, ]   # slope row
-  tibble(variable  = v,
-         test      = "lm slope",
-         statistic = tt["Estimate"],
-         p.value   = tt["Pr(>|t|)"])
+
+assoc_tests <- function(df, y, preds, time_adjust = TRUE) {
+  map_dfr(preds, ~{
+    predictor_name <- .x
+    
+    # Build the model formula
+    formula_str <- if (time_adjust) {
+      paste(y, "~", predictor_name, "+ time_start_to_mammo")
+    } else {
+      paste(y, "~", predictor_name)
+    }
+    
+    lm(as.formula(formula_str), data = df) %>%
+      tidy() %>%
+      filter(startsWith(term, predictor_name)) %>%
+      select(statistic = estimate, p.value) %>%
+      mutate(
+        variable = predictor_name,
+        test = "lm",
+        .before = 1
+      )
   })
 }
 
-# ---------------------------------------------------------------
-# 3. Main wrapper
-# ---------------------------------------------------------------
+
 plot_y_vs_all <- function(
     df,
-    y           = "mirai_score_5y",
-    predictors  = c(
-      "study.entry.age",
-      "cumulus_reading",
-      "bodysizebminow",
-      "meno_age_est",
-      "pregparitycnt", 
-      "ocever",
-      "hrtever"
+    y = "mirai_score_5y",
+    predictors = c(
+      "study.entry.age", "cumulus_reading", "bodysizebminow",
+      "meno_age_est", "pregparitycnt", "ocever", "hrtever"
     )
 ) {
-  # -- clean & select ------------------------------------------------------
-  df  <- clean_risk_factors(df)
+  df_clean <- clean_risk_factors(df)
   
-  preds <- predictors
-  if ("pregparitycnt" %in% preds)
-    preds[preds == "pregparitycnt"] <- "pregparity_binary"
-  preds <- intersect(preds, names(df))
+  if ("pregparitycnt" %in% predictors) {
+    predictors[predictors == "pregparitycnt"] <- "pregparity_binary"
+  }
+  preds <- intersect(predictors, names(df_clean))
   
-  # -- split for pivot -----------------------------------------------------
-  cont_vars <- preds[sapply(df[preds], is.numeric)]
-  cat_vars  <- setdiff(preds, cont_vars)
+  is_numeric_pred <- sapply(df_clean[preds], is.numeric)
   
-  cont_long <- df %>%
-    select(all_of(c(y, cont_vars))) %>%
-    pivot_longer(-all_of(y), names_to = "variable", values_to = "value") %>%
-    mutate(var_type = "continuous", value = as.character(value))
+  long_df <- bind_rows(
+    df_clean %>% select(all_of(y), all_of(preds[is_numeric_pred])) %>%
+      pivot_longer(-all_of(y), names_to = "variable", values_to = "value_num"),
+    
+    df_clean %>% select(all_of(y), all_of(preds[!is_numeric_pred])) %>%
+      pivot_longer(-all_of(y), names_to = "variable", values_to = "value_cat")
+  ) %>%
+    mutate(variable = factor(variable, levels = preds))
   
-  cat_long  <- df %>%
-    select(all_of(c(y, cat_vars))) %>%
-    pivot_longer(-all_of(y), names_to = "variable", values_to = "value") %>%
-    mutate(var_type = "categorical", value = as.character(value))
-  
-  long_df <- bind_rows(cont_long, cat_long) %>%
-    mutate(variable = factor(variable, levels = preds)) 
-  
-  # -- build plot ----------------------------------------------------------
   p <- ggplot(long_df, aes(y = .data[[y]])) +
-    geom_boxplot(
-      data  = subset(long_df, var_type == "categorical"),
-      aes(x = value, group = value)
-    ) +
-    geom_point(
-      data  = subset(long_df, var_type == "continuous"),
-      aes(x = as.numeric(value)),
-      alpha = 0.30
-    ) +
+    geom_boxplot(data = ~filter(., !is.na(value_cat)), aes(x = value_cat)) +
+    geom_point(data = ~filter(., !is.na(value_num)), aes(x = value_num), alpha = 0.3) +
     geom_smooth(
-      data  = subset(long_df, var_type == "continuous"),
-      aes(x = as.numeric(value)),
+      data = ~filter(., !is.na(value_num)), aes(x = value_num),
       method = "lm", se = FALSE, color = "blue"
     ) +
     facet_wrap(~ variable, scales = "free_x") +
-    theme_minimal() +
     labs(
-      x     = NULL,
-      y     = y,
-      title = paste(y, "vs risk factors")
-    ) + theme(panel.border = element_rect(fill=NA, color='black', size=1))
+      x = "Risk Factor Value",
+      y = y,
+      title = paste(y, "vs. Risk Factors")
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+      panel.border = element_rect(color = "black", fill = NA, size = 0.5),
+      strip.text = element_text(face = "bold")
+    )
   
-  # -- run association tests ----------------------------------------------
-  tests <- assoc_tests(df, y, preds)
+  tests <- assoc_tests(df_clean, y, preds)
   
-  # -- return both ---------------------------------------------------------
   list(plot = p, tests = tests)
 }
 
 
 correlation <- plot_y_vs_all(study.data.strategyB%>% filter(case_control_status == 0))
+print(correlation$tests)
 print(correlation$plot)
 
-# Association with BMI, after adjusting for density
-study.data.strategyB.cleaned <- clean_risk_factors(study.data.strategyB)
-bmi_model <- lm(mirai_score_5y ~ bodysizebminow + cumulus_reading, data=study.data.strategyB.cleaned)
-bmi_meno_model <- lm(mirai_score_5y ~ bodysizebminow*menopausal + cumulus_reading, data=study.data.strategyB.cleaned)
-
+# # Association with BMI, after adjusting for density
+# study.data.strategyB.cleaned <- clean_risk_factors(study.data.strategyB)
+# bmi_model <- lm(mirai_score_5y ~ bodysizebminow + cumulus_reading, data=study.data.strategyB.cleaned)
+# bmi_meno_model <- lm(mirai_score_5y ~ bodysizebminow*menopausal + cumulus_reading, data=study.data.strategyB.cleaned)
+# 
 
 # # Correlations between risk factors and Mirai score
 # # Age at mammogram
