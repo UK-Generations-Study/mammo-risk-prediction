@@ -39,6 +39,7 @@
 	* 778 eligible participants
 		* 773 were available for analysis (5 excluded due to _need to complete_)
 			* 527 participants (~68%) were missing a Cumulus density reading
+			
 	| Score   | C-index |
 	|---------|---------|
 	| GAIL    | 0.446   |
@@ -49,6 +50,7 @@
 	* 615 eligible participants
 		* 611 were available for analysis (4 excluded due to _need to complete_)
 			* 423 participants (~69%) were missing a Cumulus density reading
+			
 	| Score   | C-index |
 	|---------|---------|
 	| GAIL    | 0.527   |
