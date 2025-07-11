@@ -26,6 +26,7 @@ setwd(dirname(rstudioapi::getSourceEditorContext()$path))
 source("../helper_functions/create_analytical_dataset.R")
 source("../helper_functions/Load_RDS_data.R")
 source("../1_score_generation/GAIL_score_generation.R")
+source("../helper_functions/iCARE_validate_and_plot.R")
 
 ## Reading in data
 
@@ -53,6 +54,7 @@ data_cumulus <- read.csv("//rds/data/DGE/DUDGE/Shared/GENERATIONS/CoreData/v2023
 ## Derive study population (for each strategy)
 
 for(strategy in names(eligible_dicom)){
+# for(strategy in c("A")){
   
   # Get fup start dates from mammograms
   data_images_dates <- data_images |>
@@ -75,6 +77,13 @@ for(strategy in names(eligible_dicom)){
     filter(Reader_ID != "JW") |>
     group_by(TCode) |>
     summarise(cumulus_reading = mean(Cumulus_Reading, na.rm = T))
+  
+  # Add in Cumulus scores and report completeness
+  cumulus_scores_2 <- data_cumulus |>
+    filter(TCode %in% study.data.2$TCode) |>
+    filter(Reader_ID != "JW") |>
+    group_by(TCode) |>
+    summarise(cumulus_reading_all = mean(Cumulus_Reading, na.rm = T))
    
   # # All Cumulus scores
   # cumulus_scores_all <- data_cumulus |>
@@ -86,9 +95,11 @@ for(strategy in names(eligible_dicom)){
   # print(nrow(cumulus_scores_all))
   
   study.data.3 <- study.data.2 |>
-    merge(cumulus_scores, by = "TCode", all.x = T)
+    merge(cumulus_scores, by = "TCode", all.x = T) |>
+    merge(cumulus_scores_2, by = "TCode", all.x = T)
   
   print(table(is.na(study.data.3$cumulus_reading)))
+  print(table(is.na(study.data.3$cumulus_reading_all)))
   
   # Add in GAIL scores
   gail_scores <- study.data.3 |>
@@ -96,8 +107,12 @@ for(strategy in names(eligible_dicom)){
     filter(study.exit.age <= 90 & study.entry.age >= 20) |>
     do(GAIL_score_generation(.))
   
+  
+  cat("\n")
+
   study.data.4 <- study.data.3 |>
     merge(gail_scores, by = "TCode", all.x = T)
+  
   
   # Ground truth case-control status
   study.data.5 <- study.data.4 |>
@@ -118,10 +133,13 @@ for(strategy in names(eligible_dicom)){
   
   # For each score (ADD IN MIRAI) calculate CI and AUC (5-year)
   # Loop through scores calculating relevant metrics
-  for(score in c("gail_score", "cumulus_reading", "mirai_score_5y")){
+  for(score in c("gail_score", "cumulus_reading", "cumulus_reading_all", "mirai_score_5y")){
     
-    auc <- suppressWarnings(auc(study.data.5$case_control_status, study.data.5[[score]]))
-    ci <- pROC::ci(auc)
+    auc_1 <- (with(study.data.5 |> filter(!is.na(!!sym(score))) |> mutate(score = !!sym(score)), auc(case_control_status, score, direction = "<")))
+    ci_1 <- pROC::ci(auc_1)
+    
+    auc_2 <- (with(study.data.5 |> filter(!is.na(!!sym(score))) |> mutate(score = !!sym(score)) |> filter(case_control_status != 0 | study.exit.age - study.entry.age >= 5), auc(case_control_status, score, direction = "<")))
+    ci_2 <- pROC::ci(auc_2)
     
     concordance_index <- with(study.data.5 |> filter(!is.na(!!sym(score))) |> mutate(score = !!sym(score)), Cindex(risk = score, times = time.ci, delta = case_control_status))
     
@@ -135,9 +153,13 @@ for(strategy in names(eligible_dicom)){
     ci_upper <- quantile(ci_sample, probs = 0.975)
     ci_ci <- c(ci_lower, ci_upper)
     
-    cat(paste0("AUC for ", score, ": ", round(auc, 5), " (" , paste0(round(ci[-2], 5), collapse = ", "), ")", "\n"))
+    cat(paste0("AUC for ", score, ": ", round(auc_1, 5), " (" , paste0(round(ci_1[-2], 5), collapse = ", "), ")", "\n"))
+    
+    cat(paste0("Correct AUC for ", score, ": ", round(auc_2, 5), " (" , paste0(round(ci_2[-2], 5), collapse = ", "), ")", "\n"))
     
     cat(paste0("Concordance Index for ", score, ": ", round(concordance_index, 5), " (" , paste0(round(ci_ci, 5), collapse = ", "), ")","\n"))
+    
+    cat("\n")
     
   }
   

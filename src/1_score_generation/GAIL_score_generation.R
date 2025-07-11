@@ -27,7 +27,7 @@ GAIL_score_generation <- function(df){
       
       # Age
       T1 = study.entry.age,
-      T2 = study.exit.age,
+      T2 = study.entry.age + 5,
       
       # N_Biop
       # NOTE: Unclear whether this data has been updated - will check
