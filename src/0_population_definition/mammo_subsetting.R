@@ -201,7 +201,7 @@ subset_step9a <- subset_step8a %>%
   ungroup()
 # Strategy B (for the studies that were the same between A and B, use the same DICOM selection as A)
 subset_step9b_samestudies <- subset_step9a %>% 
-  semi_join(subset_step9b, by = c("TCode", "StudyDate_m_fmt"))
+  semi_join(subset_step8b, by = c("TCode", "StudyDate_m_fmt"))
 set.seed(42)
 subset_step9b_diffstudies <- subset_step8b %>%
   anti_join(
