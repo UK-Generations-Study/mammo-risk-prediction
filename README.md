@@ -39,17 +39,21 @@
 	* 778 eligible participants
 		* 773 were available for analysis (5 excluded due to _need to complete_)
 			* 527 participants (~68%) were missing a Cumulus density reading
-	| GAIL | Cumulus | Mirai
-	------------------------
-	CI|0.446|0.496|0.767
+	| Score   | C-index |
+	|---------|---------|
+	| GAIL    | 0.446   |
+	| Cumulus | 0.496   |
+	| Mirai   | 0.767   |
 
 2. Strategy B: 
 	* 615 eligible participants
 		* 611 were available for analysis (4 excluded due to _need to complete_)
 			* 423 participants (~69%) were missing a Cumulus density reading
-	| GAIL | Cumulus | Mirai
-	------------------------
-	CI|0.527|0.541|0.656
+	| Score   | C-index |
+	|---------|---------|
+	| GAIL    | 0.527   |
+	| Cumulus | 0.541   |
+	| Mirai   | 0.656   |
 	
 3. Correlation with Risk Factors:
 	* Associations with MIRAI 5-year risk score (Strategy B, controls only):
