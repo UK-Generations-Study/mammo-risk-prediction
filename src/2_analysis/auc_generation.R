@@ -111,7 +111,9 @@ for(strategy in names(eligible_dicom)){
   cat("\n")
 
   study.data.4 <- study.data.3 |>
-    merge(gail_scores, by = "TCode", all.x = T)
+    merge(gail_scores, by = "TCode", all.x = T) |>
+    # Remove people older than 85\
+    filter(study.exit.age <= 90 & study.entry.age >= 20)
   
   
   # Ground truth case-control status
@@ -129,12 +131,24 @@ for(strategy in names(eligible_dicom)){
         TRUE ~ pmin(time.of.onset, 5)
       )
       
-    )
+    ) |>
+    mutate(mirai_score_5y_cumulus_available = ifelse(!is.na(cumulus_reading), mirai_score_5y, NA),
+           mirai_score_5y_cumulus_unavailable = ifelse(is.na(cumulus_reading), mirai_score_5y, NA))
+  
+  # Calculating residuals of mirai score (Y) ~ cumulus reading (X)
+  study.data.5 <- study.data.5 |>
+    mutate(mirai_score_5y_sans_cumulus = residuals(lm(
+      qlogis(mirai_score_5y) ~ cumulus_reading,# qlogis(cumulus_reading / 100),
+      data = study.data.5,
+      na.action=na.exclude
+    )))
+  
   
   # For each score (ADD IN MIRAI) calculate CI and AUC (5-year)
   # Loop through scores calculating relevant metrics
-  for(score in c("gail_score", "cumulus_reading", "cumulus_reading_all", "mirai_score_5y")){
-    
+  #for(score in c("gail_score", "cumulus_reading", "cumulus_reading_all", "mirai_score_5y", "mirai_score_5y_sans_cumulus")) {
+  for(score in c("mirai_score_5y_cumulus_unavailable")) {
+      
     auc_1 <- (with(study.data.5 |> filter(!is.na(!!sym(score))) |> mutate(score = !!sym(score)), auc(case_control_status, score, direction = "<")))
     ci_1 <- pROC::ci(auc_1)
     
@@ -145,7 +159,7 @@ for(strategy in names(eligible_dicom)){
     
     # Bootstrapping for C-Index
     ci_sample <- numeric(0)
-    for(i in 1:100){
+    for(i in 1:5000){
       ci_sample[i] <- with(study.data.5 |> filter(!is.na(!!sym(score))) |> mutate(score = !!sym(score)) |> sample_n(size = n(), replace = T), Cindex(risk = score, times = time.ci, delta = case_control_status))
     }
     
