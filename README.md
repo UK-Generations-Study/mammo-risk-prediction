@@ -21,6 +21,7 @@
 	* MIRAI scores calculated using latest valid mammography study as described above. The score for a 5-year risk will be used in discrimination analysis
 	* Calculate GAIL scores using data up to the date of the mammogram
 	* Use Cumulus scores from the date of the mammogram used to calculate MIRAI scores
+	* As an estimate of the Mirai risk score excluding density information, the residuals were taken from a model fitting Cumulus readings onto Mirai 5yr risk
 * Discrimination analysis
 	* To evaluate discrimination of the scores, we will calculate the concordance index (C-index) of the scores with right-censoring at 5 years.
 * Correlation with known risk factors
@@ -42,9 +43,10 @@
 			
 	| Score   | C-index |
 	|---------|---------|
-	| GAIL    | 0.521   |
-	| Cumulus | 0.496   |
-	| Mirai   | 0.767   |
+	| GAIL    | 0.521 \(0.490 - 0.552\)   |
+	| Cumulus | 0.498 \(0.450 - 0.553\)  |
+	| Mirai   | 0.767 \(0.741 - 0.788\)  |
+	| Mirai \(residuals\) | 0.760 \(0.720 - 0.800\) | 
 
 2. Strategy B: 
 	* 615 eligible participants
@@ -53,9 +55,10 @@
 			
 	| Score   | C-index |
 	|---------|---------|
-	| GAIL    | 0.539   |
-	| Cumulus | 0.541   |
-	| Mirai   | 0.656   |
+	| GAIL    | 0.539 \(0.498 - 0.579\)  |
+	| Cumulus | 0.541 \(0.474 - 0.666\)  |
+	| Mirai   | 0.656 \(0.619 - 0.690\) |
+	| Mirai \(residuals\) | 0.622 \(0.555 - 0.687\) | 
 	
 3. Correlation with Risk Factors:
 	* Associations with MIRAI 5-year risk score (Strategy B, controls only):
