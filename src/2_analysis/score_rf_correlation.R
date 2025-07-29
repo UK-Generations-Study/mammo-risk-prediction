@@ -1,4 +1,30 @@
+
+library(ggplot2)
 library(dplyr)
+library(readr)
+library(tidyr)
+library(sqldf)
+library(stringr)
+library(lubridate)
+library(gt)
+library(pROC)
+library(crosstable)
+library(readxl)
+library(Hmisc)
+library(nftbart)
+library(BCRA) # GAIL SCORE
+library(GGally)
+library(purrr)
+library(broom)
+
+
+##################
+## LOADING DATA ##
+##################
+
+
+## Set working directory
+setwd(dirname(rstudioapi::getSourceEditorContext()$path))
 
 ## Functions
 source("../helper_functions/create_analytical_dataset.R")
@@ -10,17 +36,23 @@ eligible_dicom <- list()
 eligible_dicom[["A"]] <- read.csv("../../../data/eligible_dicomuids_strategyA.csv")
 eligible_dicom[["B"]] <- read.csv("../../../data/eligible_dicomuids_strategyB.csv")
 
+# Mammo images
+data_images <- read.csv("//rds/data/DGE/DUDGE/Shared/GENERATIONS/CoreData/v20230927/RDSCCMammoImages_v1.csv")
+data_mammoset <- read.csv("//rds/data/DGE/DUDGE/Shared/GENERATIONS/CoreData/v20230927/RDSCCMammoSet_v1.csv")
+
 # Defining population: determine follow-up start date (date of mammogram)
 data_images_dates_strategyA <- data_images |>
   filter(SOPInstanceUID %in% eligible_dicom[["A"]]$SOPInstanceUID) |>
+  left_join(data_mammoset %>% select(SOPInstanceUID, YearOfMammo), by='SOPInstanceUID') |>
   group_by(TCode) |>
-  summarise(StudyDate_m = as.Date(unique(StudyDate_m), format = "%d/%m/%Y")) |>
+  summarise(YearOfMammo = unique(YearOfMammo), StudyDate_m = as.Date(unique(StudyDate_m), format = "%d/%m/%Y")) |>
   ungroup()
 
 data_images_dates_strategyB <- data_images |>
   filter(SOPInstanceUID %in% eligible_dicom[["B"]]$SOPInstanceUID) |>
+  left_join(data_mammoset %>% select(SOPInstanceUID, YearOfMammo), by='SOPInstanceUID') |>
   group_by(TCode) |>
-  summarise(StudyDate_m = as.Date(unique(StudyDate_m), format = "%d/%m/%Y")) |>
+  summarise(YearOfMammo = unique(YearOfMammo), StudyDate_m = as.Date(unique(StudyDate_m), format = "%d/%m/%Y")) |>
   ungroup()
 
 # Risk scores: Mirai
@@ -50,17 +82,209 @@ cumulus_scores_strategyB <- data_cumulus |>
 study.data.strategyA <- data_images_dates_strategyA |>
   do(create_analytical_dataset(., years = NA, cancer = "breast", fup_start_date = "StudyDate_m")) |>
   merge(risk_mirai_strategyA, by='TCode') |> 
-  merge(cumulus_scores_strategyA, by='TCode', all.x=T)
+  merge(cumulus_scores_strategyA, by='TCode', all.x=T) |>
+  left_join(data_images_dates_strategyA %>% select(TCode, YearOfMammo), by='TCode')
 
 study.data.strategyB <- data_images_dates_strategyB |>
   do(create_analytical_dataset(., years = NA, cancer = "breast", fup_start_date = "StudyDate_m")) |>
   merge(risk_mirai_strategyB, by='TCode') |> 
-  merge(cumulus_scores_strategyB, by='TCode', all.x=T)
+  merge(cumulus_scores_strategyB, by='TCode', all.x=T) |>
+  left_join(data_images_dates_strategyB %>% select(TCode, YearOfMammo), by='TCode')
 
-# Correlation with age at mammogram
-plot(study.data.strategyB$study.entry.age, study.data.strategyB$mirai_score_5y)
-cor(study.data.strategyB$study.entry.age, study.data.strategyB$mirai_score_5y)
+# Case/control status
+study.data.strategyA <- study.data.strategyA |>
+  mutate(
+    
+    case_control_status = case_when(
+      time.of.onset > 5 | time.of.onset > (study.exit.age - study.entry.age) ~ 0,
+      TRUE ~ 1
+    ),
+    
+    #time.ci = pmin(time.of.onset, 5)
+    time.ci = case_when(
+      case_control_status == 0 ~ pmin(study.exit.age - study.entry.age, 5),
+      TRUE ~ pmin(time.of.onset, 5)
+    )
+    
+  )
 
-# Correlation with Cumulus scores
-plot(study.data.strategyB$cumulus_reading, study.data.strategyB$mirai_score_5y)
-with(study.data.strategyB %>% filter(!is.na(cumulus_reading)), cor(cumulus_reading, mirai_score_5y))
+study.data.strategyB <- study.data.strategyB |>
+  mutate(
+    
+    case_control_status = case_when(
+      time.of.onset > 5 | time.of.onset > (study.exit.age - study.entry.age) ~ 0,
+      TRUE ~ 1
+    ),
+    
+    #time.ci = pmin(time.of.onset, 5)
+    time.ci = case_when(
+      case_control_status == 0 ~ pmin(study.exit.age - study.entry.age, 5),
+      TRUE ~ pmin(time.of.onset, 5)
+    )
+    
+  )
+
+
+##################
+## CORRELATIONS ##
+##################
+
+clean_risk_factors <- function(df) {
+  df %>%
+    mutate(
+      menopausal = factor(case_when(
+        R1menopause %in% c(1, 3) ~ TRUE,
+        R1menopause == 2 ~ FALSE,
+        TRUE ~ NA
+      )),
+      pregparity_binary = factor(!pregparitycnt %in% c(-1, 99)),
+      time_start_to_mammo = StudyDate_m - as.Date(fupca_start_F_study),
+      
+      bodysizebminow = na_if(bodysizebminow, 999),
+      meno_age_est = if_else(meno_age_est > study.entry.age, NA_real_, meno_age_est),
+      
+      hrtever = factor(if_else(menopausal == TRUE, hrtever, NA_integer_)),
+      # ocever  = factor(if_else(menopausal == FALSE, ocever, NA_integer_))
+      ocever  = factor(ocever)
+    )
+}
+
+
+assoc_tests <- function(df, y, preds, time_adjust = TRUE, multivariable = FALSE) {
+  if(!multivariable) {
+    map_dfr(preds, ~{
+      predictor_name <- .x
+      
+      # Build the model formula
+      formula_str <- if (time_adjust) {
+        paste(y, "~", predictor_name, "+ time_start_to_mammo")
+      } else {
+        paste('qlogis(',y,')', "~", predictor_name)
+      }
+      
+      lm(as.formula(formula_str), data = df) %>%
+        tidy() %>%
+        filter(startsWith(term, predictor_name)) %>%
+        select(statistic = estimate, p.value) %>%
+        mutate(
+          variable = predictor_name,
+          test = "lm",
+          .before = 1
+        )
+    })
+  } else {
+    
+  }
+}
+
+
+plot_y_vs_all <- function(
+    df,
+    y = "mirai_score_5y",
+    predictors = c(
+      "study.entry.age", "cumulus_reading", "bodysizebminow",
+      "meno_age_est", "pregparitycnt", "ocever", "hrtever"
+    ),
+    time_adjust = F
+) {
+  df_clean <- clean_risk_factors(df)
+  
+  if ("pregparitycnt" %in% predictors) {
+    predictors[predictors == "pregparitycnt"] <- "pregparity_binary"
+  }
+  preds <- intersect(predictors, names(df_clean))
+  
+  is_numeric_pred <- sapply(df_clean[preds], is.numeric)
+  
+  long_df <- bind_rows(
+    df_clean %>% select(all_of(y), all_of(preds[is_numeric_pred])) %>%
+      pivot_longer(-all_of(y), names_to = "variable", values_to = "value_num"),
+    
+    df_clean %>% select(all_of(y), all_of(preds[!is_numeric_pred])) %>%
+      pivot_longer(-all_of(y), names_to = "variable", values_to = "value_cat")
+  ) %>%
+    mutate(variable = factor(variable, levels = preds))
+  
+  p <- ggplot(long_df, aes(y = .data[[y]])) +
+    geom_boxplot(data = ~filter(., !is.na(value_cat)), aes(x = value_cat)) +
+    geom_point(data = ~filter(., !is.na(value_num)), aes(x = value_num), alpha = 0.3) +
+    geom_smooth(
+      data = ~filter(., !is.na(value_num)), aes(x = value_num),
+      method = "lm", se = FALSE, color = "blue"
+    ) +
+    facet_wrap(~ variable, scales = "free_x") +
+    labs(
+      x = "Risk Factor Value",
+      y = y,
+      title = paste(y, "vs. Risk Factors")
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+      panel.border = element_rect(color = "black", fill = NA, size = 0.5),
+      strip.text = element_text(face = "bold")
+    )
+  #browser()
+  tests <- assoc_tests(df_clean, y, preds, time_adjust = time_adjust)
+  
+  list(plot = p, tests = tests)
+}
+
+
+# Univariable correlations
+correlation <- plot_y_vs_all(study.data.strategyB%>% filter(case_control_status == 0), time_adjust = F)
+print(correlation$tests)
+correlation_timeadj <- plot_y_vs_all(study.data.strategyB%>% filter(case_control_status == 0), time_adjust = F)
+print(correlation_timeadj$tests)
+print(correlation$plot)
+
+# Multivariable correlations
+study.data.strategyB.cleaned <- clean_risk_factors(study.data.strategyB)# |> filter(!is.na(cumulus_reading))
+preds <- c(
+  "study.entry.age","bodysizebminow",  "cumulus_reading",
+  "meno_age_est", "pregparity_binary", "ocever", "hrtever"
+)
+study.data.strategyB.cleaned <- study.data.strategyB.cleaned |>
+  mutate(across(all_of(preds),
+                ~ ifelse(is.na(.), 1, 0),
+                .names = "{.col}_NA")) %>%
+  mutate(
+    across(all_of(preds), ~ {
+      if (is.factor(.)) {
+        addNA(.)
+      } else {
+        replace(., is.na(.), 0)
+      }
+    })
+  )
+
+non_factor_preds <- preds[!sapply(study.data.strategyB.cleaned[preds], is.factor)]
+na_cols <- paste0(non_factor_preds, "_NA")
+
+all_preds <- c(preds, na_cols)
+formula_str <- paste(all_preds, collapse = "+")
+
+summary(lm(as.formula(paste('qlogis(mirai_score_5y)', "~", formula_str)), data=study.data.strategyB.cleaned))
+
+summary(lm(as.formula(paste('qlogis(mirai_score_5y)', "~", 'cumulus_reading_NA')), data=study.data.strategyB.cleaned))
+
+
+summary(lm(qlogis(mirai_score_5y) ~ paste0(cumulus_reading_NA, "_", case_control_status), data = study.data.strategyB.cleaned))
+
+summary(lm(study.entry.age ~ cumulus_reading_NA, data = study.data.strategyB.cleaned))
+
+
+
+# # Association with BMI, after adjusting for density
+# study.data.strategyB.cleaned <- clean_risk_factors(study.data.strategyB)
+# bmi_model <- lm(mirai_score_5y ~ bodysizebminow + cumulus_reading, data=study.data.strategyB.cleaned)
+# bmi_meno_model <- lm(mirai_score_5y ~ bodysizebminow*menopausal + cumulus_reading, data=study.data.strategyB.cleaned)
+# 
+
+# # Correlations between risk factors and Mirai score
+# # Age at mammogram
+# with(study.data.strategyB %>% filter(case_control_status == 0), plot(study.entry.age, mirai_score_5y))
+# with(study.data.strategyB %>% filter(case_control_status == 0), cor(study.entry.age, mirai_score_5y))
+# 
+# # Cumulus score
+# with(study.data.strategyB %>% filter(case_control_status == 0), plot(cumulus_reading, mirai_score_5y))
+# with(study.data.strategyB %>% filter(case_control_status == 0, !is.na(cumulus_reading)), cor(cumulus_reading, mirai_score_5y))
