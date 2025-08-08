@@ -12,9 +12,7 @@
 	* Participant does not die in the year proceeding the mammography study
 	* Mammography study was conducted before the end of follow up 
 * If a mammography study had more than one mammographic image of the same view, only one was kept with random selection.
-* A single mammography study was selected per participant, according to the following strategies, producing two separate subsets:
-	1. Strategy A: The latest mammography study was chosen.
-	2. Strategy B: The latest mammography study performed more than one year before the date of diagnosis was chosen.
+* Per participant, the latest mammography study performed more than one year before the date of diagnosis was selected.
 
 ## Plan of Analysis
 * Risk scores
@@ -36,19 +34,7 @@
 		- Hormone replacement therapy use at baseline (among postmenopausal women)
 		
 ## Results
-1. Strategy A: 
-	* 778 eligible participants
-		* 773 were available for analysis (5 excluded due to _need to complete_)
-			* 527 participants (~68%) were missing a Cumulus density reading
-			
-	| Score   | C-index |
-	|---------|---------|
-	| GAIL    | 0.521 \(0.490 - 0.552\)   |
-	| Cumulus | 0.498 \(0.450 - 0.553\)  |
-	| Mirai   | 0.767 \(0.741 - 0.788\)  |
-	| Mirai \(residuals\) | 0.760 \(0.720 - 0.800\) | 
-
-2. Strategy B: 
+1. 
 	* 615 eligible participants
 		* 611 were available for analysis (4 excluded due to _need to complete_)
 			* 423 participants (~69%) were missing a Cumulus density reading
@@ -60,7 +46,7 @@
 	| Mirai   | 0.656 \(0.619 - 0.690\) |
 	| Mirai \(residuals\) | 0.622 \(0.555 - 0.687\) | 
 	
-3. Correlation with Risk Factors:
+2. Correlation with Risk Factors:
 	* Associations with MIRAI 5-year risk score (Strategy B, controls only):
 	
 	| Variable           | Test       | Estimate    | p-value |
