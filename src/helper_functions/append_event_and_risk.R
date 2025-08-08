@@ -21,12 +21,13 @@ source("../helper_functions/iCARE_validate_and_plot.R")
 
 
 dicom_metadata_fn <- "//rds/data/DGE/DUDGE/Shared/GENERATIONS/CoreData/v20230927/RDSCCMammoImages_v1.csv"
-set_metadata_fn <- read.csv("//rds/data/DGE/DUDGE/Shared/GENERATIONS/CoreData/v20230927/RDSCCMammoSet_v1.csv")
+set_metadata_fn <- "//rds/data/DGE/DUDGE/Shared/GENERATIONS/CoreData/v20230927/RDSCCMammoSet_v1.csv"
 
 # Append incident cancers to passed DICOM UIDs
-append_event_data <- function(dicom_uids, dicom_metadata = NULL, set_metadata = NULL)  {
-  if(length(dim(dicom_uids))) # Handle passing dataframe
-    dicom_uids <- dicom_uids[,1]
+append_event_data <- function(eligible_dicom_uids, dicom_metadata = NULL, set_metadata = NULL)  {
+  #browser()
+  if(length(dim(eligible_dicom_uids))) # Handle passing dataframe
+    eligible_dicom_uids <- eligible_dicom_uids[,1]
   
   if(is.null(dicom_metadata))
     dicom_metadata <- read.csv(dicom_metadata_fn)
@@ -36,10 +37,10 @@ append_event_data <- function(dicom_uids, dicom_metadata = NULL, set_metadata = 
   
   # Get fup start dates from mammograms
   dicom_data <- dicom_metadata |>
-    filter(SOPInstanceUID %in% dicom_uids) |>
-    left_join(set_metadata %>% select(SOPInstanceUID, YearOfMammo), by='SOPInstanceUID') |>
+    filter(SOPInstanceUID %in% eligible_dicom_uids) |>
+    #left_join(set_metadata %>% select(SOPInstanceUID, YearOfMammo), by='SOPInstanceUID') |>
     group_by(TCode) |>
-    summarise(YearOfMammo = unique(YearOfMammo),
+    summarise(#YearOfMammo = unique(YearOfMammo),
               StudyDate_m = as.Date(unique(StudyDate_m), format = "%d/%m/%Y")) |>
     ungroup()
   
@@ -66,7 +67,9 @@ append_event_data <- function(dicom_uids, dicom_metadata = NULL, set_metadata = 
   return(study_data)
 }
 
-append_risk_scores <- function(data) {
+append_risk_scores <- function(data, eligible_dicom_uids) {
+  if(length(dim(eligible_dicom_uids))) # Handle passing dataframe
+    eligible_dicom_uids <- eligible_dicom_uids[,1]
   # Append Mirai scores
   load_mirai_score <- function(score_csv) {
     read.csv(score_csv) %>%
@@ -77,11 +80,11 @@ append_risk_scores <- function(data) {
   risk_mirai <- load_mirai_score("../../../output/mirai_scores_strategyB.csv")
   data <- data |>
     merge(risk_mirai, by='TCode')
-  
-  # Append Cumulus scores
+  #browser()
+    # Append Cumulus scores
   data_cumulus <- read.csv("//rds/data/DGE/DUDGE/Shared/GENERATIONS/CoreData/v20230927/RDSCCMammoCumulus_v1.csv")  
   cumulus_scores <- data_cumulus |>
-    #filter(SOPInstanceUID %in% eligible_dicoms$SOPInstanceUID) |>
+    filter(SOPInstanceUID %in% eligible_dicom_uids) |>
     filter(Reader_ID != "JW") |>
     group_by(TCode) |>
     summarise(cumulus_reading = mean(Cumulus_Reading, na.rm = T))

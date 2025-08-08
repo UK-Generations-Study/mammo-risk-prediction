@@ -140,13 +140,13 @@ plot_y_vs_all <- function(
 # Univariable correlations #
 ############################
 
-correlation <- plot_y_vs_all(study.data%>% filter(case_control_status == 0), time_adjust = F)
+correlation <- plot_y_vs_all(study.data %>% filter(case_control_status == 0), time_adjust = F)
 print(correlation$tests)
 print(correlation$plot)
 
 # Time-adjusted
-# correlation_timeadj <- plot_y_vs_all(study.data.strategyB%>% filter(case_control_status == 0), time_adjust = F)
-# print(correlation_timeadj$tests)
+correlation_timeadj <- plot_y_vs_all(study.data %>% filter(case_control_status == 0), time_adjust = T)
+print(correlation_timeadj$tests)
 
 
 ##############################

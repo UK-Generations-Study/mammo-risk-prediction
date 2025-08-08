@@ -29,9 +29,9 @@ source("../helper_functions/iCARE_validate_and_plot.R")
 source("../helper_functions/append_event_and_risk.R")
 
 eligible_dicoms_fn <- "../../../data/eligible_dicomuids_strategyB.csv"
-
-study.data <- read.csv(eligible_dicoms_fn) %>%
-  append_event_data() %>% append_risk_scores()
+eligible_dicom_uids <- read.csv(eligible_dicoms_fn)
+study.data <- eligible_dicom_uids %>%
+  append_event_data() %>% append_risk_scores(eligible_dicom_uids)
 
 # Calculating residuals of mirai score (Y) ~ cumulus reading (X)
 study.data <- study.data |>
@@ -68,11 +68,15 @@ ci_calc <- function(data, risk_scores) {
 # Execution #
 #############
 
+study.data <- study.data |> 
+  mutate(gail_eligible = study.exit.age <= 90 & study.entry.age >= 20,
+         cumulus_eligible = !is.na(cumulus_reading))
+# All are Gail eligible (per >= 90yrs and <= 20 yrs criteria)
+
 # No filter: Mirai
-cindex_compldata <- ci_calc(study.data, c("mirai_score_5y"))
+cindex_compldata <- ci_calc(study.data, c("gail_score", "mirai_score_5y"))
 
-# Remove >= 90yrs and <= 20 yrs: GAIL and Mirai
-cindex_subsetdata <- ci_calc(study.data %>% filter(study.exit.age <= 90 & study.entry.age >= 20), c("gail_score", "mirai_score_5y"))
-
-# Non-NA: Cumulus and Mirai
-cindex_subsetdata <- ci_calc(study.data %>% filter(!is.na(cumulus_reading)), c("cumulus_reading", "mirai_score_5y"))
+# Only non-missing Cumulus reading eligible: Cumulus and Mirai
+cindex_denssubsetdata <- ci_calc(study.data %>% filter(cumulus_eligible), c("gail_score", "cumulus_reading", "mirai_score_5y"))
+table(cumulus_available=study.data$cumulus_eligible)
+prop.table(table(cumulus_available=study.data$cumulus_eligible))
