@@ -12,9 +12,7 @@
 	* Participant does not die in the year proceeding the mammography study
 	* Mammography study was conducted before the end of follow up 
 * If a mammography study had more than one mammographic image of the same view, only one was kept with random selection.
-* A single mammography study was selected per participant, according to the following strategies, producing two separate subsets:
-	1. Strategy A: The latest mammography study was chosen.
-	2. Strategy B: The latest mammography study performed more than one year before the date of diagnosis was chosen.
+* Per participant, the latest mammography study performed more than one year before the date of diagnosis was selected.
 
 ## Plan of Analysis
 * Risk scores
@@ -36,51 +34,53 @@
 		- Hormone replacement therapy use at baseline (among postmenopausal women)
 		
 ## Results
-1. Strategy A: 
-	* 778 eligible participants
-		* 773 were available for analysis (5 excluded due to _need to complete_)
-			* 527 participants (~68%) were missing a Cumulus density reading
-			
-	| Score   | C-index |
-	|---------|---------|
-	| GAIL    | 0.521 \(0.490 - 0.552\)   |
-	| Cumulus | 0.498 \(0.450 - 0.553\)  |
-	| Mirai   | 0.767 \(0.741 - 0.788\)  |
-	| Mirai \(residuals\) | 0.760 \(0.720 - 0.800\) | 
-
-2. Strategy B: 
+1. 
 	* 615 eligible participants
 		* 611 were available for analysis (4 excluded due to _need to complete_)
 			* 423 participants (~69%) were missing a Cumulus density reading
-			
-	| Score   | C-index |
-	|---------|---------|
-	| GAIL    | 0.539 \(0.498 - 0.579\)  |
-	| Cumulus | 0.541 \(0.474 - 0.666\)  |
-	| Mirai   | 0.656 \(0.619 - 0.690\) |
-	| Mirai \(residuals\) | 0.622 \(0.555 - 0.687\) | 
 	
-3. Correlation with Risk Factors:
-	* Associations with MIRAI 5-year risk score (Strategy B, controls only):
-	
-	| Variable           | Test       | Estimate    | p-value |
-	|--------------------|------------|-------------|---------|
-	| study.entry.age    | lm slope   | 0.000233    | 0.074   |
-	| cumulus_reading    | lm slope   | 0.000254    | 0.018   |
-	| bodysizebminow     | lm slope   | -0.000116   | 0.624   |
-	| meno_age_est       | lm slope   | 0.0000339   | 0.890   |
-	| pregparity_binary  | lm slope   | 0.00233     | 0.471   |
-	| ocever             | lm slope   | -0.00383    | 0.541   |
-	| hrtever            | lm slope   | 0.00246     | 0.363   |
-	
-	* Associations with MIRAI 5-year risk score (Strategy B, controls only, adjusted by time from baseline to mammography study):
+	### A. Complete Case Analysis (n = 611)
 
-	| Variable           | Test     | Estimate    | p-value |
-	|--------------------|----------|-------------|---------|
-	| study.entry.age    | lm slope | 0.000204    | 0.111   |
-	| cumulus_reading    | lm slope | 0.000242    | 0.0245  |
-	| bodysizebminow     | lm slope | -0.000206   | 0.379   |
-	| meno_age_est       | lm slope | 0.0000934   | 0.700   |
-	| pregparity_binary  | lm slope | 0.00306     | 0.337   |
-	| ocever             | lm slope | -0.00412    | 0.511   |
-	| hrtever            | lm slope | 0.00251     | 0.344   |
+	| Score           | C-index                        |
+	|----------------|---------------------------------|
+	| GAIL           | 0.539 (0.498 – 0.579)           |
+	| Mirai (5-year) | 0.655 (0.620 – 0.690)           |
+
+	### B. Subset with Cumulus Reading (n = 188)
+
+	| Score           | C-index                        |
+	|----------------|---------------------------------|
+	| Cumulus        | 0.541 (0.472 – 0.610)           |
+	| GAIL           | 0.529 (0.462 – 0.593)           |
+	| Mirai (5-year) | 0.630 (0.566 – 0.693)           |
+	
+2. Correlation with Risk Factors:
+
+	### Univariable: Associations with MIRAI 5-year risk score (controls only):
+	
+	| Variable           | Test | Estimate   | p-value |
+	|--------------------|------|------------|---------|
+	| study.entry.age    | lm   | 0.00801    | 0.0170  |
+	| cumulus_reading    | lm   | 0.00779    | 0.00284 |
+	| bodysizebminow     | lm   | -0.000740  | 0.905   |
+	| meno_age_est       | lm   | 0.000619   | 0.921   |
+	| pregparity_binary  | lm   | 0.0409     | 0.625   |
+	| ocever             | lm   | -0.0481    | 0.527   |
+	| hrtever            | lm   | 0.0448     | 0.497   |
+
+	### Multivariable: Associations with MIRAI 5-year risk score (controls only):
+	
+	| Variable                | Estimate   | p-value   |
+	|-------------------------|------------|-----------|
+	| study.entry.age         | 0.008543   | 0.106751  |
+	| cumulus_reading         | 0.008722   | 0.000348  |
+	| bodysizebminow          | 0.014977   | 0.012955  |
+	| meno_age_est            | 0.001707   | 0.790228  |
+	| pregparity_binary       | 0.096926   | 0.228883  |
+	| ocever                  | -0.031448  | 0.672083  |
+	| hrtever                 | 0.048213   | 0.434621  |
+	| hrteverNA               | 0.092853   | 0.285590  |
+	| study.entry.age_NA      | NA         | NA        |
+	| bodysizebminow_NA       | 0.462661   | 0.042469  |
+	| cumulus_reading_NA      | 0.170572   | 0.015404  |
+	| meno_age_est_NA         | 0.122369   | 0.719432  |
