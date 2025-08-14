@@ -67,7 +67,7 @@ append_event_data <- function(eligible_dicom_uids, dicom_metadata = NULL, set_me
   return(study_data)
 }
 
-append_risk_scores <- function(data, eligible_dicom_uids) {
+append_risk_scores <- function(data, eligible_dicom_uids, return_gail_data=F) {
   if(length(dim(eligible_dicom_uids))) # Handle passing dataframe
     eligible_dicom_uids <- eligible_dicom_uids[,1]
   # Append Mirai scores
@@ -93,13 +93,17 @@ append_risk_scores <- function(data, eligible_dicom_uids) {
     merge(cumulus_scores, by = "TCode", all.x = T)
   
   # Append GAIL scores
-  gail_scores <- data |>
+  gail_filter <- data |>
     select(TCode, study.entry.age, study.exit.age) |>
-    filter(study.exit.age <= 90 & study.entry.age >= 20) |>
-    do(GAIL_score_generation(.))
+    filter(study.exit.age <= 90 & study.entry.age >= 20)
+  
+  gail_output <-  GAIL_score_generation(gail_filter)
   
   data <- data |>
-    merge(gail_scores, by = "TCode", all.x = T)
+    merge(gail_output$scores, by = "TCode", all.x = T)
   
-  return(data)
+  if(return_gail_data)
+    return(list(output=data, gail_data=gail_output$data))
+  else
+    return(list(output=data, gail_data=NULL))
 }
