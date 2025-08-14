@@ -21,7 +21,7 @@
 	* Use Cumulus scores from the date of the mammogram used to calculate MIRAI scores
 	* As an estimate of the Mirai risk score excluding density information, the residuals were taken from a model fitting Cumulus readings onto Mirai 5yr risk
 * Discrimination analysis
-	* To evaluate discrimination of the scores, we will calculate the concordance index (C-index) of the scores with right-censoring at 5 years.
+	* To evaluate discrimination of the scores, we will calculate the concordance index (C-index) of the scores with right-censoring at 5 years, end of follow-up, or at event, whichever comes first.
 * Correlation with known risk factors
 	* We assessed the association between MIRAI 5-year risk scores and established breast cancer risk factors using linear models.
 	* Risk factors included:
