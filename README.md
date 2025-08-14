@@ -48,8 +48,7 @@
 ## Results
 1. Discrimination performance
 	* 615 eligible participants
-		* 611 were available for analysis (4 excluded due to _need to complete_)
-			* 423 participants (~69%) were missing a Cumulus density reading
+		* 611 were available for analysis (4 excluded due to corrupted dicom or opt-out)
 	
 	### A. Complete Case Analysis (n = 611)
 
@@ -82,7 +81,6 @@
 	
 	| Variable            | p-value |
 	|---------------------|---------|
-	| (Intercept)         | <2e-16  |
 	| T1                  | 0.0199  |
 	| N_Biop1             | 0.1737  |
 	| AgeMen              | 0.8225  |
