@@ -51,9 +51,9 @@ subset_step3 <- subset_step2 %>% left_join(data_mammo_set %>% dplyr::select(SOPI
 # Using StudyDate as a proxy for Study
 # table(subset_step2$View_m)
 required_views <- c("RCC", "RMLO", "LCC", "LMLO")
-subset_step4 <- subset_step3 %>% mutate(MammoDate_fmt = dmy(MammoDate)) %>%
+subset_step4 <- subset_step3 %>% mutate(MammoDate = dmy(MammoDate)) %>%
   group_by(TCode) %>%
-  mutate(StudyIndex = dense_rank(MammoDate_fmt)) %>%
+  mutate(StudyIndex = dense_rank(MammoDate)) %>%
   ungroup() %>%
   group_by(TCode, StudyIndex) %>%
   filter(all(required_views %in% View_m),
@@ -70,14 +70,14 @@ subset_step5 <- subset_step4 %>%
   ungroup()
 
 # The number of DICOMs we have for each study (some have extra L/R MLO/CC views)
-View(subset_step5 %>%
-       group_by(TCode, StudyIndex) %>%
-       summarise(DICOMs = n()) %>% arrange(desc(DICOMs)))
-
-View(subset_step5 %>%
-       group_by(TCode, StudyIndex) %>%
-       #filter(n() > 4) %>%
-       ungroup())
+# View(subset_step5 %>%
+#        group_by(TCode, StudyIndex) %>%
+#        summarise(DICOMs = n()) %>% arrange(desc(DICOMs)))
+# 
+# View(subset_step5 %>%
+#        group_by(TCode, StudyIndex) %>%
+#        #filter(n() > 4) %>%
+#        ungroup())
 
 # Sanity check
 sanity_check <- subset_step5 %>% left_join(data_mammo_set %>% dplyr::select('SOPInstanceUID', 'ImageType'), by = c('SOPInstanceUID'))
@@ -98,15 +98,18 @@ data_cancer <- read.csv("//rds/data/DGE/DUDGE/Shared/GENERATIONS/CoreData/v20230
 data_images_dates <- data_mammo_set|>
   filter(SOPInstanceUID %in% subset_step5$SOPInstanceUID) |>
   group_by(SOPInstanceUID) |>
-  summarise(MammoDate = as.Date(unique(MammoDate), format = "%d/%m/%Y")) |>
+  summarise(MammoDate = as.Date(unique(MammoDate), format = "%d/%m/%Y"),
+            TCode = unique(TCode)) |>
   ungroup()
 
-subset_step6 <- subset_step5 %>% dplyr::select(-MammoDate) |> 
-  merge(data_images_dates, by = "SOPInstanceUID") |>
+subset_step6 <- subset_step5 |> 
+  select(-TCode) |>
+  merge(data_images_dates, by = c("SOPInstanceUID", "MammoDate")) |>
   do(create_analytical_dataset(., years = NA, cancer = "all_breast", fup_start_date = "MammoDate", data_cancer = data_cancer))
 
 subset_step6 <- subset_step6 %>%
-  dplyr::select(-setdiff(setdiff(colnames(subset_step6), colnames(subset_step5)), c('fupca_end_reason', 'study.exit.age', 'study.entry.age')))
+  dplyr::select(-setdiff(setdiff(colnames(subset_step6), colnames(subset_step5)), c('fupca_end_reason', 'study.exit.age', 'study.entry.age', 'time.of.onset', 'fupca_start_F'))) |>
+  rename(MammoDate = fupca_start_F)
 
 #### -- sAnItY check -- ####
 
@@ -132,7 +135,7 @@ subset_step7a <- subset_step6 %>% filter(!(study.exit.age - study.entry.age < 1 
 # 8. For Strategy B: Dropping mammogram studies taken less than 1 year before an invasive/in situ breast cancer cancer diagnosis.
 subset_step7b <- subset_step7a %>% left_join(get_earliest_cancer(data_cancer = data_cancer, cancer = 'inv_DCIS_LCIS_breast') %>% 
                                              dplyr::select(TCode, date_diag), by ='TCode') %>%
-  filter(is.na(date_diag) | time_length(interval(MammoDate_fmt, date_diag), "year") >= 1)
+  filter(is.na(date_diag) | time_length(interval(MammoDate, date_diag), "year") >= 1)
 # with(subset_step7 %>% left_join(get_earliest_cancer(data_cancer = data_cancer, cancer = 'breast') %>% 
 # dplyr::select(TCode, date_diag), by ='TCode') %>% mutate(diff = time_length(interval(StudyDate_m_fmt, date_diag), "year")), hist(diff, breaks=20))
 setdiff(subset_step7a$TCode, subset_step7b$TCode) # Participants whose only mammogram study was within 1 yr prior to diagnosis
@@ -140,10 +143,10 @@ setdiff(subset_step7a$TCode, subset_step7b$TCode) # Participants whose only mamm
 # Finally:
 # Export unique TCodes
 subset_step7a_tcodes <- unique(subset_step7a[,'TCode'])
-setwd(dirname(rstudioapi::getSourceEditorContext()$path))
-write.csv(subset_step7a_tcodes, r"(../../../data/eligible_tcodes_mammodate.csv)", row.names=F)
+# setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+# write.csv(subset_step7a_tcodes, r"(../../../data/eligible_tcodes_mammodate.csv)", row.names=F)
 # Export all possible studies
-write.csv(subset_step7a[,'SOPInstanceUID',drop=F], r"(../../../data/all_eligible_dicomuids_mammodate.csv)", row.names=F)
+# write.csv(subset_step7a[,'SOPInstanceUID',drop=F], r"(../../../data/all_eligible_dicomuids_mammodate.csv)", row.names=F)
 
 # ------------------------- #
 # B. Selecting studies
@@ -156,16 +159,51 @@ subset_step7b %>% group_by(TCode) %>% summarise(Studies = length(unique(StudyInd
 # Filtering to studies with at least 4 views
 # subset_step5 %>% group_by(TCode, StudyIndex) %>% summarise(DICOMs = n()) # All have at least 4.
 
+# Get studies with Cumulus measurements
+cumulus_studies <- data_mammo_cumulus |>
+  filter(Reader_ID != "JW") |>
+  filter(SOPInstanceUID %in% subset_step7b$SOPInstanceUID) |>
+  select(TCode, SOPInstanceUID) |>
+  merge(select(subset_step7b, SOPInstanceUID, study.entry.age), by = "SOPInstanceUID", all.x = T) |>
+  select(TCode, cumulus.age = study.entry.age) |>
+  distinct()
+
 # Two subsetting strategies to select one study per participant:
 # Subset A: Latest DICOM studies (take the most recent DICOM study)
 # Selecting only the latest study
 subset_step8a <- subset_step7a %>%
   group_by(TCode) %>%
-  filter(MammoDate_fmt == max(MammoDate_fmt, na.rm = TRUE)) %>%
+  filter(MammoDate == max(MammoDate, na.rm = TRUE)) %>%
   ungroup()
 subset_step8b <- subset_step7b %>%
   group_by(TCode) %>%
-  filter(MammoDate_fmt == max(MammoDate_fmt, na.rm = TRUE)) %>%
+  filter(MammoDate == max(MammoDate, na.rm = TRUE)) %>%
+  ungroup()
+
+# Derive subset_step8b using cumulus measurements
+subset_step8c <- subset_step7b |>
+  mutate(cumulus_measurement = F)
+for(t in unique(subset_step7b$TCode)){
+
+  cumulus_ages <- cumulus_studies |> filter(TCode == t) |> select(cumulus.age) |> unique()
+
+  subset_step8c <- subset_step8c |>
+    mutate(cumulus_measurement = case_when(
+      TCode != t ~ cumulus_measurement,
+      TRUE ~ study.entry.age %in% cumulus_ages
+    ))
+
+}
+
+subset_step8c <- subset_step8c |>
+  group_by(TCode) |>
+  filter(
+    case_when(
+      sum(cumulus_measurement) > 0 ~ cumulus_measurement,
+      TRUE ~ TRUE
+    )
+  ) |>
+  filter(MammoDate == max(MammoDate, na.rm = TRUE)) |>
   ungroup()
 
 # # # To sanity check, the different DICOMs in B come from participants that in A had their mammogram study LATER ONLY.
@@ -202,17 +240,57 @@ subset_step9a <- subset_step8a %>%
   ungroup()
 # Strategy B (for the studies that were the same between A and B, use the same DICOM selection as A)
 subset_step9b_samestudies <- subset_step9a %>% 
-  semi_join(subset_step8b, by = c("TCode", "MammoDate_fmt"))
+  semi_join(subset_step8b, by = c("TCode", "MammoDate"))
 set.seed(42)
 subset_step9b_diffstudies <- subset_step8b %>%
   anti_join(
-    subset_step9a %>% dplyr::select(TCode, MammoDate_fmt),
-    by = c("TCode", "MammoDate_fmt")
+    subset_step9a %>% dplyr::select(TCode, MammoDate),
+    by = c("TCode", "MammoDate")
   ) %>%
   group_by(TCode, View_m) %>%
   slice_sample(n = 1) %>%
   ungroup()
 subset_step9b <- bind_rows(subset_step9b_samestudies, subset_step9b_diffstudies)
+
+# Strategy C (for the studies that were the same between B and C, use the same DICOM selection as B)
+subset_step9c_samestudies <- subset_step9b %>% 
+  semi_join(subset_step8c, by = c("TCode", "MammoDate"))
+set.seed(42)
+subset_step9c_diffstudies <- subset_step8c %>%
+  anti_join(
+    subset_step9b %>% dplyr::select(TCode, MammoDate),
+    by = c("TCode", "MammoDate")
+  ) %>%
+  group_by(TCode, View_m) %>%
+  slice_sample(n = 1) %>%
+  ungroup()
+subset_step9c <- bind_rows(subset_step9c_samestudies, subset_step9c_diffstudies)
+
+# Check how many participants in strategy B have a cumulus measurement
+n_participants <- length(unique(subset_step9b$TCode))
+n_cumulus_b <- 0
+for(t in unique(subset_step9b$TCode)){
+  
+  tcodes_age <- subset_step9b |> filter(TCode == t) |> select(study.entry.age) |> unique()
+  cumulus_age <- cumulus_studies |> filter(TCode == t) |> select(cumulus.age) |> unique()
+  
+  if(tcodes_age %in% cumulus_age){
+    n_cumulus_b <- n_cumulus_b + 1
+  }
+  
+}
+
+n_cumulus_c <- 0
+for(t in unique(subset_step9c$TCode)){
+  
+  tcodes_age <- subset_step9c |> filter(TCode == t) |> select(study.entry.age) |> unique()
+  cumulus_age <- cumulus_studies |> filter(TCode == t) |> select(cumulus.age) |> unique()
+  
+  if(tcodes_age %in% cumulus_age){
+    n_cumulus_c <- n_cumulus_c + 1
+  }
+  
+}
 
 # Participants that did not have a previous study 1+ yr before diagnosis
 setdiff(subset_step9a$TCode, subset_step9b$TCode) # TCodes
@@ -235,28 +313,33 @@ length(setdiff(subset_step9a$TCode, subset_step9b$TCode)) + length(unique(subset
 # View(subset_step9a %>% dplyr::distinct(TCode, StudyDate_m_fmt) %>% inner_join(subset_step9b_diffstudies %>% dplyr::distinct(TCode, StudyDate_m_fmt, date_diag), by='TCode'))
 
 # DICOMs per TCode
-View(subset_step9a %>%
-       group_by(TCode) %>%
-       summarise(DICOMs = n()) %>% arrange(desc(DICOMs)))
-View(subset_step9b %>%
-       group_by(TCode) %>%
-       summarise(DICOMs = n()) %>% arrange(desc(DICOMs)))
+# View(subset_step9a %>%
+#        group_by(TCode) %>%
+#        summarise(DICOMs = n()) %>% arrange(desc(DICOMs)))
+# View(subset_step9b %>%
+#        group_by(TCode) %>%
+#        summarise(DICOMs = n()) %>% arrange(desc(DICOMs)))
 
 # Exporting list of DICOM identifiers
-setwd(dirname(rstudioapi::getSourceEditorContext()$path))
-write.csv(subset_step9a[,'SOPInstanceUID',drop=F], r"(../../../data/eligible_dicomuids_mammodate_strategyA.csv)", row.names=F)
+# setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+# write.csv(subset_step9a[,'SOPInstanceUID',drop=F], r"(../../../data/eligible_dicomuids_mammodate_strategyA.csv)", row.names=F)
 write.csv(subset_step9b[,'SOPInstanceUID',drop=F], r"(../../../data/eligible_dicomuids_mammodate_strategyB.csv)", row.names=F)
+write.csv(subset_step9c[,'SOPInstanceUID',drop=F], r"(../../../data/eligible_dicomuids_mammodate_strategyB_cumulus.csv)", row.names=F)
+
 
 # # Differences vs. StudyDate selection
 # Saving all new DICOM UIDs relative to studydate selection
 eligible_dicomuids_mammodate_strategyA <- read.csv(r"(../../../data/eligible_dicomuids_mammodate_strategyA.csv)")
 eligible_dicomuids_studydate_strategyA <- read.csv(r"(../../../data/eligible_dicomuids_strategyA.csv)")
 eligible_dicomuids_mammodate_strategyB <- read.csv(r"(../../../data/eligible_dicomuids_mammodate_strategyB.csv)")
+eligible_dicomuids_mammodate_strategyB_cumulus <- read.csv(r"(../../../data/eligible_dicomuids_mammodate_strategyB_cumulus.csv)")
 eligible_dicomuids_studydate_strategyB <- read.csv(r"(../../../data/eligible_dicomuids_strategyB.csv)")
 mammodate_new_dicomsuids_strategyA <- setdiff(eligible_dicomuids_mammodate_strategyA$SOPInstanceUID, eligible_dicomuids_studydate_strategyA$SOPInstanceUID)
 mammodate_new_dicomsuids_strategyB <- setdiff(eligible_dicomuids_mammodate_strategyB$SOPInstanceUID, eligible_dicomuids_studydate_strategyB$SOPInstanceUID)
-write.csv(data.frame(SOPInstanceUID=unique(c(mammodate_new_dicomsuids_strategyA, mammodate_new_dicomsuids_strategyB))),
-          r"(../../../data/eligible_dicomuids_request_jul25.csv)", row.names=F)
+mammodate_new_dicomsuids_strategyB_cumulus_base <- setdiff(eligible_dicomuids_mammodate_strategyB_cumulus$SOPInstanceUID, eligible_dicomuids_studydate_strategyB$SOPInstanceUID)
+mammodate_new_dicomsuids_strategyB_cumulus <- setdiff(eligible_dicomuids_mammodate_strategyB_cumulus$SOPInstanceUID, eligible_dicomuids_mammodate_strategyB$SOPInstanceUID)
+write.csv(data.frame(SOPInstanceUID=unique(c(mammodate_new_dicomsuids_strategyB_cumulus_base))),
+          r"(../../../data/eligible_dicomuids_request_aug18.csv)", row.names=F)
 
 
 # tcodes_new <- data_mammo_set %>% 
