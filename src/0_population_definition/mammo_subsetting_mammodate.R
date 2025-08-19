@@ -355,4 +355,3 @@ write.csv(data.frame(SOPInstanceUID=unique(c(mammodate_new_dicomsuids_strategyB_
 # c(subset_step9a$SOPInstanceUID, subset_step9b$SOPInstanceUID)
 # new_uids <- setdiff(c(subset_step9a$SOPInstanceUID, subset_step9b$SOPInstanceUID), previously_requested_uids$SOPInstanceUID)
 # write.csv(data.frame(SOPInstanceUID=new_uids), r"(../../../data/eligible_dicomuids_new.csv)", row.names=F)
-
