@@ -80,7 +80,7 @@ GAIL_score_generation <- function(df){
     select(TCode, gail_score)
   
   # Output scores
-  return(df)
+  return(list(data=df_gail, scores=df))
   
   
   
