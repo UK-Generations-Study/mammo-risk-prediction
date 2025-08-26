@@ -17,6 +17,7 @@ library(BCRA) # GAIL SCORE
 source("../helper_functions/create_analytical_dataset.R")
 source("../helper_functions/Load_RDS_data.R")
 source("../1_score_generation/GAIL_score_generation.R")
+source("../1_score_generation/iCARE_Lit_score_generation.R")
 source("../helper_functions/iCARE_validate_and_plot.R")
 
 
@@ -67,7 +68,7 @@ append_event_data <- function(eligible_dicom_uids, dicom_metadata = NULL, set_me
   return(study_data)
 }
 
-append_risk_scores <- function(data, eligible_dicom_uids, return_gail_data=F) {
+append_risk_scores <- function(data, eligible_dicom_uids, return_data=F) {
   if(length(dim(eligible_dicom_uids))) # Handle passing dataframe
     eligible_dicom_uids <- eligible_dicom_uids[,1]
   # Append Mirai scores
@@ -102,8 +103,14 @@ append_risk_scores <- function(data, eligible_dicom_uids, return_gail_data=F) {
   data <- data |>
     merge(gail_output$scores, by = "TCode", all.x = T)
   
-  if(return_gail_data)
-    return(list(output=data, gail_data=gail_output$data))
+  # Append iCARE-Lit scores
+  iCARE_output <- iCARE_Lit_score_generation(data |> select(TCode, study.entry.age))
+  
+  data <- data |>
+    merge(iCARE_output$scores, by = "TCode", all.x = T)
+  
+  if(return_data)
+    return(list(output=data, gail_data=gail_output$data, iCARE_Lit_data = iCARE_output$data))
   else
-    return(list(output=data, gail_data=NULL))
+    return(data)
 }

@@ -16,7 +16,11 @@ library(crosstable)
 library(readxl)
 library(Hmisc)
 library(nftbart)
-library(BCRA) # GAIL SCORE
+library(BCRA)   
+library(readxl)
+library(iCARE)
+library(tidyr)
+# GAIL SCORE
 
 ## Set working directory
 setwd(dirname(rstudioapi::getSourceEditorContext()$path))
@@ -28,6 +32,7 @@ source("../1_score_generation/GAIL_score_generation.R")
 source("../helper_functions/iCARE_validate_and_plot.R")
 source("../helper_functions/append_event_and_risk.R")
 
+# Read in eligible dicoms
 eligible_dicoms_fn <- "../../../data/eligible_dicomuids_strategyB.csv"
 eligible_dicom_uids <- read.csv(eligible_dicoms_fn)
 study.data <- eligible_dicom_uids %>%
@@ -74,9 +79,9 @@ study.data <- study.data |>
 # All are Gail eligible (per >= 90yrs and <= 20 yrs criteria)
 
 # No filter: Mirai
-cindex_compldata <- ci_calc(study.data, c("gail_score", "mirai_score_5y"))
+cindex_compldata <- ci_calc(study.data, c("gail_score", "mirai_score_5y", "iCARE_Lit_risk_5"))
 
 # Only non-missing Cumulus reading eligible: Cumulus and Mirai
-cindex_denssubsetdata <- ci_calc(study.data %>% filter(cumulus_eligible), c("gail_score", "cumulus_reading", "mirai_score_5y"))
+cindex_denssubsetdata <- ci_calc(study.data %>% filter(cumulus_eligible), c("gail_score", "cumulus_reading", "mirai_score_5y", "iCARE_Lit_risk_5"))
 table(cumulus_available=study.data$cumulus_eligible)
 prop.table(table(cumulus_available=study.data$cumulus_eligible))
