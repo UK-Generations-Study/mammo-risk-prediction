@@ -37,7 +37,7 @@ source("../helper_functions/append_event_and_risk.R")
 eligible_dicoms_fn <- "../../../data/eligible_dicomuids_strategyB.csv"
 
 scores_and_rf_data <- read.csv(eligible_dicoms_fn) %>%
-  append_event_data() %>% append_risk_scores(read.csv(eligible_dicoms_fn),return_gail_data=T)
+  append_event_data() %>% append_risk_scores(read.csv(eligible_dicoms_fn),return_data=T)
 
 study.data <- scores_and_rf_data$output %>%
   select('TCode', 'case_control_status', 'cumulus_reading', 'mirai_score_5y', 'gail_score',
