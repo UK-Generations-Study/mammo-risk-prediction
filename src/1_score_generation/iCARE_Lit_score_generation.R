@@ -286,8 +286,6 @@ iCARE_Lit_score_generation <- function(df){
   source("//rds/data/DGE/DUDGE/INCANEPI/Generations/Projects/mammo_risk_prediction/repo_reuben/src/helper_functions/competing_mortality.R")
   mort_UK <- suppressMessages(competing_mort_rates())
   
-  browser()
-  
   # Run risk scores
   results_iCARE_lt50=computeAbsoluteRisk(model.formula = model.lit.lt50, model.cov.info = cov_info_lit_lt50, 
                                          model.snp.info = NULL, model.log.RR = beta_lit_lt50,
