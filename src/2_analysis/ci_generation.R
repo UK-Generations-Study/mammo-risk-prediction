@@ -33,7 +33,7 @@ source("../helper_functions/iCARE_validate_and_plot.R")
 source("../helper_functions/append_event_and_risk.R")
 
 # Read in eligible dicoms
-eligible_dicoms_fn <- "../../../data/eligible_dicomuids_strategyB.csv"
+eligible_dicoms_fn <- "../../../data/eligible_dicomuids_mammodate_strategyB_cumulus.csv"
 eligible_dicom_uids <- read.csv(eligible_dicoms_fn)
 study.data <- eligible_dicom_uids %>%
   append_event_data() %>% append_risk_scores(eligible_dicom_uids)
