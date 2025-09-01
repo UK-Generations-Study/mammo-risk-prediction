@@ -44,7 +44,7 @@
  Distributions of risk factors are shown among **controls only**, except for *case/control status* which is shown across the full study population.
  
  <a href="results/plots/rf_distr.png">
-   <img src="results/plots/rf_distr.png" alt="Risk factor distributions" width="600">
+   <img src="results/plots/rf_distr.png" alt="Risk factor distributions" width="800">
  </a>
 	
 ## Results
