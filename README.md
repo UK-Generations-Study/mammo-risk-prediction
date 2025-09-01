@@ -37,7 +37,7 @@
 ## Data description
  ### Baseline characteristics
  <a href="results/tables/table_one.png">
-   <img src="results/tables/table_one.png" alt="Table 1 — Baseline characteristics" width="400">
+   <img src="results/tables/table_one.png" alt="Table 1 — Baseline characteristics" width="600">
  </a>
 
  ### Risk factor distributions
