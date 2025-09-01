@@ -50,7 +50,22 @@ study.data <- scores_and_rf_data$output %>%
   N_Rels = case_when(
     N_Rels == 0 ~ '0',
     N_Rels >= 1 ~ '1+'
-  )) %>% mutate(Race = factor(Race, levels=c('White', 'Non-white')))
+  ),
+  AgeMenCat = factor(case_when(
+    AgeMen == 99 ~ NA,
+    AgeMen >= 12 ~ '>= 12 years',
+    AgeMen < 12 ~ '< 12 years',
+  )),
+  Age1stCat = factor(case_when(
+    Age1st == 98 ~ NA,
+    Age1st >= 30 ~ '>= 30 years',
+    Age1st < 30 ~ '< 30 years',
+  )),
+  AgeCat = case_when(
+    T1 < 50 ~ '< 50 years',
+    T2 >= 50 ~ '>= 50 years'
+  )) %>%
+  mutate(Race = factor(Race, levels=c('White', 'Non-white')))
             
 ###########
 # Table 1 #
@@ -142,9 +157,12 @@ gt::gtsave(as_gt(table.one), filename = "../../results/tables/table_one.png", zo
 ################
 
 
-cat_vars <- c("case_control_status", "N_Biop", "N_Rels", "Race")
+cat_vars <- c("case_control_status", "AgeCat", "AgeMenCat", "Age1stCat", "N_Biop", "N_Rels", "Race")
 var_labels <- c(
   case_control_status = "Case/Control status",
+  AgeCat = "Age at mammography",
+  AgeMenCat = "Age at menarche",
+  Age1stCat = "Age at 1st birth",
   N_Biop              = "No. benign biopsies",
   N_Rels              = "No. FDRs with breast cancer",
   Race                = "Race/ethnicity"
@@ -176,19 +194,26 @@ long_casecontrol <- study_recoded %>%
 # Part B: Other variables, restricted to controls
 long_controls <- study_recoded %>%
   filter(case_control_status == "Control") %>%
-  select(N_Biop, N_Rels, Race, mirai_score_5y) %>%
+  select(AgeCat, AgeMenCat, Age1stCat, N_Biop, N_Rels, Race, mirai_score_5y) %>%
   pivot_longer(
-    cols = c(N_Biop, N_Rels, Race),
+    cols = c(AgeCat, AgeMenCat, Age1stCat, N_Biop, N_Rels, Race),
     names_to = "variable",
     values_to = "level"
   )
 
 # Combine them
-violin_long <- bind_rows(long_casecontrol, long_controls)
-
-
-
-
+violin_long <- bind_rows(long_casecontrol, long_controls)%>%
+  mutate(
+    variable = factor(
+      variable,
+      levels = c("case_control_status",
+                 "AgeCat",
+                 "AgeMenCat",
+                 "Age1stCat",
+                 "N_Biop",
+                 "N_Rels",
+                 "Race")
+    ))
 
 # count non-missing observations per (variable, level)
 violin_tagged <- violin_long %>%
@@ -248,7 +273,7 @@ p <- ggplot(violin_tagged, aes(x = level, y = mirai_score_5y)) +
 ggsave(
   filename = "../../results/plots/rf_distr.png",
   plot     = p,
-  width    = 9, height = 5, units = "in", dpi = 300,
+  width    = 14, height = 6, units = "in", dpi = 300,
   bg       = "white"
 )
 
@@ -256,6 +281,6 @@ ggsave(
 ggsave(
   filename = "../../results/plots/violin_plot.svg",
   plot     = p,
-  width    = 9, height = 5, units = "in",
+  width    = 14, height = 6, units = "in",
   bg       = "transparent"
 )

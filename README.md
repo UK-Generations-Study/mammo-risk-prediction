@@ -27,7 +27,7 @@
 	* Risk factors included:
 		- Age at mammography study
 		- Cumulus density reading
-		- History of atypical hyperplasia (No, Yes)
+		- History of atypical hyperplasia (No, Yes); not available within GS
 		- Number of breast biopsies with benign findings
 		- Age at menarche
 		- Age at first pregnancy
@@ -41,6 +41,7 @@
  </a>
 
  ### Risk factor distributions
+ Distributions of risk factors are shown among **controls only**, except for *case/control status* which is shown across the full study population.
  <a href="results/plots/rf_distr.png">
    <img src="results/plots/rf_distr.png" alt="Risk factor distributions" width="600">
  </a>
