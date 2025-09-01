@@ -31,15 +31,16 @@ source("../1_score_generation/GAIL_score_generation.R")
 source("../helper_functions/append_event_and_risk.R")
 
 # Defining population: Eligible DICOM UIDS
-eligible_dicoms_fn <- "../../../data/eligible_dicomuids_strategyB.csv"
+eligible_dicoms_fn <- "../../../data/eligible_dicomuids_mammodate_strategyB_cumulus.csv"
 
 scores_and_rf_data <- read.csv(eligible_dicoms_fn) %>%
-  append_event_data() %>% append_risk_scores(read.csv(eligible_dicoms_fn),return_gail_data=T)
+  append_event_data() %>% append_risk_scores(read.csv(eligible_dicoms_fn), return_data=T)
 
 study.data <- scores_and_rf_data$output %>%
   select('TCode', 'case_control_status', 'cumulus_reading', 'mirai_score_5y', 'gail_score',
          'bodysizebminow') %>%
   left_join(scores_and_rf_data$gail_data, by='TCode')
+
 
 ###############
 # HELPER FXNS #
@@ -78,14 +79,15 @@ clean_risk_factors <- function(df) {
 assoc_tests <- function(df, y, preds, time_adjust = TRUE, multivariable = FALSE) {
   if(!multivariable) {
     map_dfr(preds, ~{
+      #browser()
       predictor_name <- .x
       formula_str <- if (time_adjust) {
-        paste(y, "~", predictor_name, "+ time_start_to_mammo")
+        paste('qlogis(',y,')', "~", predictor_name, "+ time_start_to_mammo")
       } else {
         paste('qlogis(',y,')', "~", predictor_name)
       }
       
-      lm(as.formula(formula_str), data = df) %>%
+      lm(as.formula(formula_str), data = df %>% filter(!is.na(!!sym(predictor_name)))) %>%
         tidy() %>%
         filter(startsWith(term, predictor_name)) %>%
         select(statistic = estimate, p.value) %>%
@@ -116,6 +118,7 @@ plot_y_vs_all <- function(
     ),
     time_adjust = F
 ) {
+  #browser()
   df_clean <- clean_risk_factors(df)
   
   if ("pregparitycnt" %in% predictors) {

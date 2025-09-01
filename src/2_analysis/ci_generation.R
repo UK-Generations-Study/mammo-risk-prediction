@@ -33,7 +33,7 @@ source("../helper_functions/iCARE_validate_and_plot.R")
 source("../helper_functions/append_event_and_risk.R")
 
 # Read in eligible dicoms
-eligible_dicoms_fn <- "../../../data/eligible_dicomuids_strategyB.csv"
+eligible_dicoms_fn <- "../../../data/eligible_dicomuids_mammodate_strategyB_cumulus.csv"
 eligible_dicom_uids <- read.csv(eligible_dicoms_fn)
 study.data <- eligible_dicom_uids %>%
   append_event_data() %>% append_risk_scores(eligible_dicom_uids)
@@ -82,6 +82,6 @@ study.data <- study.data |>
 cindex_compldata <- ci_calc(study.data, c("gail_score", "mirai_score_5y", "iCARE_Lit_risk_5"))
 
 # Only non-missing Cumulus reading eligible: Cumulus and Mirai
-cindex_denssubsetdata <- ci_calc(study.data %>% filter(cumulus_eligible), c("gail_score", "cumulus_reading", "mirai_score_5y", "iCARE_Lit_risk_5"))
+cindex_denssubsetdata <- ci_calc(study.data %>% filter(cumulus_eligible), c("gail_score", "cumulus_reading", "mirai_score_5y", "mirai_score_5y_sans_cumulus", "iCARE_Lit_risk_5"))
 table(cumulus_available=study.data$cumulus_eligible)
 prop.table(table(cumulus_available=study.data$cumulus_eligible))

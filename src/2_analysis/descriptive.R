@@ -42,7 +42,30 @@ scores_and_rf_data <- read.csv(eligible_dicoms_fn) %>%
 study.data <- scores_and_rf_data$output %>%
   select('TCode', 'case_control_status', 'cumulus_reading', 'mirai_score_5y', 'gail_score',
          'study.entry.age', 'bodysizebminow') %>%
-  left_join(scores_and_rf_data$gail_data, by='TCode')
+  left_join(scores_and_rf_data$gail_data, by='TCode') %>%
+  mutate(Race =case_when(
+    Race == 1 ~ 'White',
+    TRUE ~ 'Non-white'
+  ),
+  N_Rels = case_when(
+    N_Rels == 0 ~ '0',
+    N_Rels >= 1 ~ '1+'
+  ),
+  AgeMenCat = factor(case_when(
+    AgeMen == 99 ~ NA,
+    AgeMen >= 12 ~ '>= 12 years',
+    AgeMen < 12 ~ '< 12 years',
+  )),
+  Age1stCat = factor(case_when(
+    Age1st == 98 ~ NA,
+    Age1st >= 30 ~ '>= 30 years',
+    Age1st < 30 ~ '< 30 years',
+  )),
+  AgeCat = case_when(
+    T1 < 50 ~ '< 50 years',
+    T2 >= 50 ~ '>= 50 years'
+  )) %>%
+  mutate(Race = factor(Race, levels=c('White', 'Non-white')))
             
 ###########
 # Table 1 #
@@ -62,32 +85,34 @@ study.data <- scores_and_rf_data$output %>%
 # (1 = White, 2 = African-American,3 = Hispanic American, 4 = Other (Native American and Unknown), 5 = Hispanic American (Foreign-born),
 # 6 = Chinese-American, 7: Japanese-American, 8: Filipino-American, 9: Hawaiian-American, 10 = Other Pacific Islander, 11 = Other Asian)
 
-study.data <- study.data %>% mutate(
-  case_control_status = factor(case_control_status, levels=c(0, 1), labels = c('Control', 'Case')),
-  HypPlas = factor(HypPlas, levels=c(0, 1), labels = c('No', 'Yes')),
-  N_Biop = factor(N_Biop),
-  N_Rels = factor(N_Rels),
-  AgeMen = ifelse(AgeMen != 99, AgeMen, NA),
-  Age1st = ifelse(Age1st != 98, Age1st, NA),
-  Race = factor(Race, levels = 1:11, labels = c(
-    'White',
-    'African-American',
-    'Hispanic American',
-    'Other (Native American and Unknown)',
-    'Hispanic American (Foreign-born)',
-    'Chinese-American',
-    'Japanese-American',
-    'Filipino-American',
-    'Hawaiian-American',
-    'Other Pacific Islander',
-    'Other Asian'
-  ))
-)
+#study.data <- 
 
 # HypPlas not shown due to absence of data.
 table.one <-
-  study.data |>
-  select(case_control_status, T1, N_Biop, AgeMen, Age1st, N_Rels, Race) |>
+  study.data %>% 
+  mutate(
+    case_control_status = factor(case_control_status, levels=c(0, 1), labels = c('Control', 'Case')),
+    HypPlas = factor(HypPlas, levels=c(0, 1), labels = c('No', 'Yes')),
+    N_Biop = factor(N_Biop),
+    N_Rels = factor(N_Rels),
+    AgeMen = ifelse(AgeMen != 99, AgeMen, NA),
+    Age1st = ifelse(Age1st != 98, Age1st, NA),
+    Race = factor(Race)
+    # Race = factor(Race, levels = 1:2, labels = c(
+    #   'White',
+    #   'Non-white'
+    #   # 'African-American',
+    #   # 'Hispanic American',
+    #   # 'Other (Native American and Unknown)',
+    #   # 'Hispanic American (Foreign-born)',
+    #   # 'Chinese-American',
+    #   # 'Japanese-American',
+    #   # 'Filipino-American',
+    #   # 'Hawaiian-American',
+    #   # 'Other Pacific Islander',
+    #   # 'Other Asian'
+    # ))
+  ) %>% select(case_control_status, T1, N_Biop, AgeMen, Age1st, N_Rels, Race) |>
   tbl_summary(
     by = case_control_status,   # stratify by CC status
     type = list(
@@ -131,13 +156,64 @@ gt::gtsave(as_gt(table.one), filename = "../../results/tables/table_one.png", zo
 # Violin plots #
 ################
 
-cat_vars <- c('case_control_status', 'N_Biop', 'N_Rels', 'Race')
+
+cat_vars <- c("case_control_status", "AgeCat", "AgeMenCat", "Age1stCat", "N_Biop", "N_Rels", "Race")
 var_labels <- c(
   case_control_status = "Case/Control status",
+  AgeCat = "Age at mammography",
+  AgeMenCat = "Age at menarche",
+  Age1stCat = "Age at 1st birth",
   N_Biop              = "No. benign biopsies",
   N_Rels              = "No. FDRs with breast cancer",
   Race                = "Race/ethnicity"
 )
+
+# Recode and split into two parts
+study_recoded <- study.data %>%
+  mutate(
+    case_control_status = factor(case_control_status,
+                                 levels = c(0, 1),
+                                 labels = c("Control", "Case")),
+    N_Biop = factor(N_Biop,
+                    levels = c(0, 1),
+                    labels = c("0", "1")),
+    N_Rels = factor(N_Rels,
+                    levels = c("0", "1+"),
+                    labels = c("0", "1+")),
+    Race = factor(Race,
+                  levels = c("Non-white", "White"),
+                  labels = c("Non-white", "White"))
+  )
+
+# Part A: Case/Control status block
+long_casecontrol <- study_recoded %>%
+  select(case_control_status, mirai_score_5y) %>%
+  rename(level = case_control_status) %>%
+  mutate(variable = "case_control_status")
+
+# Part B: Other variables, restricted to controls
+long_controls <- study_recoded %>%
+  filter(case_control_status == "Control") %>%
+  select(AgeCat, AgeMenCat, Age1stCat, N_Biop, N_Rels, Race, mirai_score_5y) %>%
+  pivot_longer(
+    cols = c(AgeCat, AgeMenCat, Age1stCat, N_Biop, N_Rels, Race),
+    names_to = "variable",
+    values_to = "level"
+  )
+
+# Combine them
+violin_long <- bind_rows(long_casecontrol, long_controls)%>%
+  mutate(
+    variable = factor(
+      variable,
+      levels = c("case_control_status",
+                 "AgeCat",
+                 "AgeMenCat",
+                 "Age1stCat",
+                 "N_Biop",
+                 "N_Rels",
+                 "Race")
+    ))
 
 # count non-missing observations per (variable, level)
 violin_tagged <- violin_long %>%
@@ -149,14 +225,22 @@ few_data  <- dplyr::filter(violin_tagged, n_obs < 5)
 many_data <- dplyr::filter(violin_tagged, n_obs >= 5)
 
 p <- ggplot(violin_tagged, aes(x = level, y = mirai_score_5y)) +
-  geom_violin(
+  geom_jitter(
     data = many_data,
-    fill = NA, linewidth = 0.6, trim = TRUE, draw_quantiles = 0.5
-  ) + # Violins for >= 5 observations
+  color = "black", alpha = 0.2, size = 1
+  ) + # Points for < 5 observations
   geom_point(
     data = few_data,
-    shape = 21, fill = NA, color = "black", alpha = 0.7, size = 1.7, stroke = 1
+    shape = 21, fill = NA, color = "black", alpha = 0.7, size = 1.7
   ) + # Points for < 5 observations
+  geom_violin(
+    data = many_data,
+    fill = NA, linewidth = 0.6, trim = TRUE
+  ) + # Violins for >= 5 observations
+  geom_boxplot(
+    data = many_data,
+    width = 0.15, outlier.shape = NA, linewidth = 0.5
+  ) +
   facet_grid(
     ~ variable,
     scales = "free_x",
@@ -165,7 +249,12 @@ p <- ggplot(violin_tagged, aes(x = level, y = mirai_score_5y)) +
   ) +
   labs(x = NULL, y = "Mirai 5-year score") +
   theme_minimal(base_size = 12) +
-  scale_y_log10(
+  # scale_y_log10(
+  #   breaks = c(0.01, 0.02, 0.05, 0.1, 0.2),
+  #   labels = scales::label_number(accuracy = 0.001, trim = TRUE)
+  # ) +
+  coord_trans(y = "log10") +   # transform AFTER stats
+  scale_y_continuous(
     breaks = c(0.01, 0.02, 0.05, 0.1, 0.2),
     labels = scales::label_number(accuracy = 0.001, trim = TRUE)
   ) +
@@ -184,7 +273,7 @@ p <- ggplot(violin_tagged, aes(x = level, y = mirai_score_5y)) +
 ggsave(
   filename = "../../results/plots/rf_distr.png",
   plot     = p,
-  width    = 10, height = 5, units = "in", dpi = 300,
+  width    = 14, height = 6, units = "in", dpi = 300,
   bg       = "white"
 )
 
@@ -192,6 +281,6 @@ ggsave(
 ggsave(
   filename = "../../results/plots/violin_plot.svg",
   plot     = p,
-  width    = 10, height = 5, units = "in",
+  width    = 14, height = 6, units = "in",
   bg       = "transparent"
 )
