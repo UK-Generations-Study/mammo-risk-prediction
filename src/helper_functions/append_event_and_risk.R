@@ -78,7 +78,7 @@ append_risk_scores <- function(data, eligible_dicom_uids, return_data=F) {
       mutate(TCode = gsub("([A-Za-z\\d]+)(\t0)", '\\1', TCode, perl=T)) %>%
       dplyr::select(TCode, mirai_score_5y)
   }
-  risk_mirai <- load_mirai_score("../../../output/mirai_scores_strategyB.csv")
+  risk_mirai <- load_mirai_score("../../../output/risk_scores/mirai_scores.csv")
   data <- data |>
     merge(risk_mirai, by='TCode')
   #browser()
@@ -97,7 +97,7 @@ append_risk_scores <- function(data, eligible_dicom_uids, return_data=F) {
   gail_filter <- data |>
     select(TCode, study.entry.age, study.exit.age) |>
     filter(study.exit.age <= 90 & study.entry.age >= 20)
-  
+
   gail_output <-  GAIL_score_generation(gail_filter)
   
   data <- data |>
