@@ -55,18 +55,18 @@
 	| Score              | C-index                        |
 	|--------------------|---------------------------------|
 	| GAIL               | 0.535 (0.493 – 0.576)           |
-	| Mirai (5-year)     | 0.695 (0.660 – 0.730)           |
 	| iCARE-Lit (5-year) | 0.537 (0.497 – 0.580)           |
+	| Mirai (5-year)     | 0.695 (0.660 – 0.730)           |
 
 	### B. Subset with Cumulus Reading (n = 236)
 
 	| Score                         | C-index                        |
 	|-------------------------------|---------------------------------|
-	| Cumulus                       | 0.552 (0.489 – 0.617)           |
 	| GAIL                          | 0.534 (0.470 – 0.597)           |
-	| Mirai (5-year)                | 0.649 (0.591 – 0.707)           |
-	| Mirai residuals     (5-year)  | 0.640 (0.581 – 0.699)           |
 	| iCARE-Lit (5-year)            | 0.494 (0.430 – 0.561)           |
+	| Mirai (5-year)                | 0.649 (0.591 – 0.707)           |
+	| Cumulus                       | 0.552 (0.489 – 0.617)           |
+	| Mirai residuals     (5-year)  | 0.640 (0.581 – 0.699)           |
 	
 2. Correlation with Risk Factors  
 	### Univariable: Associations with MIRAI 5-year risk score (controls only):
@@ -78,7 +78,7 @@
 	| Age at menopause          | 0.770   |
 	| Age at 1st birth          | 0.811   |
 	| Number of relatives with breast cancer          | 0.0878  |
-	| Cumulus reading | 0.000183 |
+	| Cumulus reading | **0.000183** |
 
 	### Multivariable: Associations with MIRAI 5-year risk score (controls only):
 
@@ -89,4 +89,4 @@
 	| Age at menopause              | 0.5168  |
 	| Age at 1st birth              | 0.5711  |
 	| Number of relatives with breast cancer              | 0.0797  |
-	| Cumulus reading     | 0.00142 |
+	| Cumulus reading     | **0.00142** |
