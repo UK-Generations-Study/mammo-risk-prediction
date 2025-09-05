@@ -15,6 +15,7 @@ library(BCRA) # GAIL SCORE
 library(GGally)
 library(purrr)
 library(broom)
+library(iCARE)
 
 
 ################

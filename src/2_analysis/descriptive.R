@@ -18,6 +18,8 @@ library(broom)
 library(gtsummary)
 library(patchwork)
 library(scales)
+library(iCARE)
+library(forcats)
 
 
 ################
@@ -39,6 +41,23 @@ eligible_dicoms_fn <- "../../../data/eligible_dicomuids_strategyB.csv"
 scores_and_rf_data <- read.csv(eligible_dicoms_fn) %>%
   append_event_data() %>% append_risk_scores(read.csv(eligible_dicoms_fn),return_data=T)
 
+lvl_order <- c(
+  # case/control
+  "Control", "Case",
+  # Age at mammography
+  "< 55 years", "55 - 65 years", "65 - 75 years", "> 75 years",
+  # Age at menarche
+  "< 11 years", "11 years", "12 years", "13 years", "> 13 years",
+  # Age at 1st birth
+  "< 24 years", "24 - 26 years", "26 - 30 years", "> 30 years",
+  # Biopsies & relatives
+  "0", "1", "1+",
+  # Race (if you include it)
+  "White", "Non-white"
+)
+
+
+
 study.data <- scores_and_rf_data$output %>%
   select('TCode', 'case_control_status', 'cumulus_reading', 'mirai_score_5y', 'gail_score',
          'study.entry.age', 'bodysizebminow') %>%
@@ -53,17 +72,24 @@ study.data <- scores_and_rf_data$output %>%
   ),
   AgeMenCat = factor(case_when(
     AgeMen == 99 ~ NA,
-    AgeMen >= 12 ~ '>= 12 years',
-    AgeMen < 12 ~ '< 12 years',
+    AgeMen < 11 ~ '< 11 years',
+    AgeMen==11 ~ '11 years',
+    AgeMen==12 ~ '12 years',
+    AgeMen ==13 ~ '13 years',
+    AgeMen >13 ~ '> 13 years'
   )),
   Age1stCat = factor(case_when(
     Age1st == 98 ~ NA,
-    Age1st >= 30 ~ '>= 30 years',
-    Age1st < 30 ~ '< 30 years',
+    Age1st < 24 ~ '< 24 years',
+    Age1st >= 24 & Age1st < 26 ~ '24 - 26 years',
+    Age1st >= 26 & Age1st < 30 ~ '26 - 30 years',
+    Age1st >= 30 ~ '> 30 years'
   )),
   AgeCat = case_when(
-    T1 < 50 ~ '< 50 years',
-    T2 >= 50 ~ '>= 50 years'
+    T1 < 55 ~ '< 55 years',
+    T1 >= 55 & T1 < 65  ~ '55 - 65 years',
+    T1 >= 65 & T1 < 75 ~ '65 - 75 years',
+    T1 >= 75 ~ '> 75 years'
   )) %>%
   mutate(Race = factor(Race, levels=c('White', 'Non-white')))
             
@@ -163,9 +189,8 @@ var_labels <- c(
   AgeCat = "Age at mammography",
   AgeMenCat = "Age at menarche",
   Age1stCat = "Age at 1st birth",
-  N_Biop              = "No. benign biopsies",
-  N_Rels              = "No. FDRs with breast cancer",
-  Race                = "Race/ethnicity"
+  N_Biop              = "Benign biopsies",
+  N_Rels              = "Family history"
 )
 
 # Recode and split into two parts
@@ -179,10 +204,10 @@ study_recoded <- study.data %>%
                     labels = c("0", "1")),
     N_Rels = factor(N_Rels,
                     levels = c("0", "1+"),
-                    labels = c("0", "1+")),
-    Race = factor(Race,
-                  levels = c("Non-white", "White"),
-                  labels = c("Non-white", "White"))
+                    labels = c("0", "1+"))#,
+    # Race = factor(Race,
+    #               levels = c("Non-white", "White"),
+    #               labels = c("Non-white", "White"))
   )
 
 # Part A: Case/Control status block
@@ -194,26 +219,37 @@ long_casecontrol <- study_recoded %>%
 # Part B: Other variables, restricted to controls
 long_controls <- study_recoded %>%
   filter(case_control_status == "Control") %>%
-  select(AgeCat, AgeMenCat, Age1stCat, N_Biop, N_Rels, Race, mirai_score_5y) %>%
+  select(AgeCat, AgeMenCat, Age1stCat, N_Biop, N_Rels, mirai_score_5y) %>%
   pivot_longer(
-    cols = c(AgeCat, AgeMenCat, Age1stCat, N_Biop, N_Rels, Race),
+    cols = c(AgeCat, AgeMenCat, Age1stCat, N_Biop, N_Rels),
     names_to = "variable",
-    values_to = "level"
+    values_to = "level",
+    values_drop_na = TRUE   # <- no NA categories at all
   )
 
-# Combine them
-violin_long <- bind_rows(long_casecontrol, long_controls)%>%
+# # Combine them
+# violin_long <- bind_rows(long_casecontrol, long_controls)%>%
+#   mutate(
+#     variable = factor(
+#       variable,
+#       levels = c("case_control_status",
+#                  "AgeCat",
+#                  "AgeMenCat",
+#                  "Age1stCat",
+#                  "N_Biop",
+#                  "N_Rels")
+#     ))
+
+
+violin_long <- bind_rows(long_casecontrol, long_controls) %>%
   mutate(
-    variable = factor(
-      variable,
-      levels = c("case_control_status",
-                 "AgeCat",
-                 "AgeMenCat",
-                 "Age1stCat",
-                 "N_Biop",
-                 "N_Rels",
-                 "Race")
-    ))
+    variable = factor(variable, levels = c(
+      "case_control_status","AgeCat","AgeMenCat","Age1stCat","N_Biop","N_Rels" # ,"Race"
+    )),
+    level = fct_relevel(level, lvl_order)                   # <-- key line
+    # If you want NA to appear last as "Missing", uncomment:
+    # level = fct_explicit_na(level, na_level = "Missing") |> fct_relevel("Missing", after = Inf)
+  )
 
 # count non-missing observations per (variable, level)
 violin_tagged <- violin_long %>%
