@@ -82,6 +82,6 @@ study.data <- study.data |>
 cindex_compldata <- ci_calc(study.data, c("gail_score", "mirai_score_5y", "iCARE_Lit_risk_5"))
 
 # Only non-missing Cumulus reading eligible: Cumulus and Mirai
-cindex_denssubsetdata <- ci_calc(study.data %>% filter(cumulus_eligible), c("gail_score", "cumulus_reading", "mirai_score_5y", "iCARE_Lit_risk_5"))
+cindex_denssubsetdata <- ci_calc(study.data %>% filter(cumulus_eligible), c("gail_score", "cumulus_reading", "mirai_score_5y", "mirai_score_5y_sans_cumulus", "iCARE_Lit_risk_5"))
 table(cumulus_available=study.data$cumulus_eligible)
 prop.table(table(cumulus_available=study.data$cumulus_eligible))
