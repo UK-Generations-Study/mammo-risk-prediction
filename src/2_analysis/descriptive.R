@@ -30,13 +30,13 @@ library(forcats)
 setwd(dirname(rstudioapi::getSourceEditorContext()$path))
 
 ## Functions
-source("../helper_functions/create_analytical_dataset.R")
+source("../helper_functions/data_processing.R")
 source("../helper_functions/Load_RDS_data.R")
 source("../1_score_generation/GAIL_score_generation.R")
 source("../helper_functions/append_event_and_risk.R")
 
 # Defining population: Eligible DICOM UIDS
-eligible_dicoms_fn <- "../../../data/eligible_dicomuids_strategyB.csv"
+eligible_dicoms_fn <- "../../../data/eligible_dicomuids_strategyB_cumulus.csv"
 
 scores_and_rf_data <- read.csv(eligible_dicoms_fn) %>%
   append_event_data() %>% append_risk_scores(read.csv(eligible_dicoms_fn),return_data=T)

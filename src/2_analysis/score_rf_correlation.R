@@ -26,7 +26,7 @@ library(iCARE)
 setwd(dirname(rstudioapi::getSourceEditorContext()$path))
 
 ## Functions
-source("../helper_functions/create_analytical_dataset.R")
+source("../helper_functions/data_processing.R")
 source("../helper_functions/Load_RDS_data.R")
 source("../1_score_generation/GAIL_score_generation.R")
 source("../helper_functions/append_event_and_risk.R")
