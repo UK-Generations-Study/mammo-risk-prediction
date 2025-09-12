@@ -14,7 +14,7 @@ library(nftbart)
 library(BCRA) # GAIL SCORE
 
 ## Functions
-source("../helper_functions/create_analytical_dataset.R")
+source("../helper_functions/data_processing.R")
 source("../helper_functions/Load_RDS_data.R")
 source("../1_score_generation/GAIL_score_generation.R")
 source("../1_score_generation/iCARE_Lit_score_generation.R")
@@ -47,7 +47,7 @@ append_event_data <- function(eligible_dicom_uids, dicom_metadata = NULL, set_me
   
   # Create analytical population
   study_data <- dicom_data |>
-    do(create_analytical_dataset(., years = NA, cancer = "breast", fup_start_date = "StudyDate_m"))
+    do(create_analytical_dataset(., years = NA, cancer = "all_breast", fup_start_date = "StudyDate_m"))
   
   study_data <- study_data |>
     mutate(
