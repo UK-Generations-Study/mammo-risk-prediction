@@ -1,0 +1,811 @@
+---
+title: "Mammography AI Breast Cancer Risk Stratification in a UK Population"
+format: html
+---
+
+## Set-up
+
+### Packages
+```{r}
+
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(tidyr)
+library(sqldf)
+library(stringr)
+library(lubridate)
+library(gt)
+library(pROC)
+library(crosstable)
+library(readxl)
+library(Hmisc)
+library(nftbart)
+library(BCRA) # GAIL SCORE
+library(GGally)
+library(purrr)
+library(broom)
+library(gtsummary)
+library(patchwork)
+library(scales)
+library(iCARE)
+library(forcats)
+library(rsample)
+
+```
+
+### Set working directory
+```{r}
+
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+```
+
+### Read in data
+```{r}
+
+# Defining population: Eligible DICOM UIDS
+eligible_dicoms_fn <- "../../../data/eligible_dicomuids_mammodate_strategyB_cumulus.csv"
+
+# Read in data and calculate risk scores
+eligible_dicom_uids <- read.csv(eligible_dicoms_fn)
+
+```
+
+### Read in appropriate functions
+```{r}
+
+source("../helper_functions/data_processing.R")
+source("../helper_functions/Load_RDS_data.R")
+source("../1_score_generation/GAIL_score_generation.R")
+source("../helper_functions/append_event_and_risk.R")
+
+```
+
+### Additional helper functions
+```{r}
+
+# Clean risk factors
+clean_risk_factors <- function(df) {
+  df %>%
+    mutate(
+      N_Biop = factor(N_Biop),
+      N_Rels = factor(N_Rels),
+      AgeMen = na_if(AgeMen, 99),
+      Age1st = na_if(Age1st, 98),
+      Race = factor(Race),
+      bodysizebminow = na_if(bodysizebminow, 999)
+    )
+}
+
+# Test for significant association
+assoc_tests <- function(df, y, preds, time_adjust = TRUE, multivariable = FALSE) {
+  if(!multivariable) {
+    map_dfr(preds, ~{
+      predictor_name <- .x
+      formula_str <- if (time_adjust) {
+        paste('qlogis(',y,')', "~", predictor_name, "+ time_start_to_mammo")
+      } else {
+        paste('qlogis(',y,')', "~", predictor_name)
+      }
+      
+      lm(as.formula(formula_str), data = df %>% filter(!is.na(!!sym(predictor_name)))) %>%
+        tidy() %>%
+        filter(startsWith(term, predictor_name)) %>%
+        select(statistic = estimate, p.value) %>%
+        mutate(
+          variable = predictor_name,
+          test = "lm",
+          .before = 1
+        )
+    })
+  } else {
+    
+  }
+}
+
+# Plotting MIRAI vs predictors
+plot_y_vs_all <- function(
+    df,
+    y = "mirai_score_5y",
+    predictors = c(
+      "T1", "N_Biop", "AgeMen", "Age1st", "N_Rels",
+      "cumulus_reading"
+    ),
+    time_adjust = F
+) {
+  df_clean <- clean_risk_factors(df)
+  
+  if ("pregparitycnt" %in% predictors) {
+    predictors[predictors == "pregparitycnt"] <- "pregparity_binary"
+  }
+  preds <- intersect(predictors, names(df_clean))
+  tests <- assoc_tests(df_clean, y, preds, time_adjust = time_adjust)
+  list(plot = NULL, tests = tests)
+}
+
+# Harrels C-index calculation
+ci_calc <- function(data, risk_scores, N = 5000) {
+  c_indices <- list()
+  
+  for(score in risk_scores) {
+    concordance_index <- with(data |> filter(!is.na(!!sym(score))) |> mutate(score = !!sym(score)), Cindex(risk = score, times = time.ci, delta = case_control_status))
+    
+    # Bootstrapping for C-Index
+    # If no N given, simply output the concordance index
+    if(!is.na(N)){
+      
+      ci_sample <- numeric(0)
+      for(i in 1:N){
+        ci_sample[i] <- with(data |> filter(!is.na(!!sym(score))) |> mutate(score = !!sym(score)) |> sample_n(size = n(), replace = T), Cindex(risk = score, times = time.ci, delta = case_control_status))
+      }
+      
+      ci_lower <- unname(quantile(ci_sample, probs = 0.025))
+      ci_upper <- unname(quantile(ci_sample, probs = 0.975))
+      
+      c_indices[[score]] <- data.frame(cindex = concordance_index, lower = ci_lower, upper = ci_upper)
+      
+    } else {
+      
+      c_indices[[score]] <- concordance_index
+      
+    }
+    
+  }
+  
+  return(c_indices)
+}
+
+
+# Five fold cross validation of c index cox regression
+ff_cox_bootstrap <- function(formula, data, N = 5000){
+  
+  
+  base_ci <- five_fold_ci(formula, data)
+  
+  ci_bt <- numeric(0)
+  for(i in 1:N){
+    
+    bootstrapped_data <- data[sample(1:nrow(data), size = nrow(data), replace = T),]
+    ci_bt[i] <- five_fold_ci(formula, data)
+    
+  }
+  
+  return(base_ci)
+  
+}
+
+five_fold_ci <- function(formula, data){
+  
+  set.seed(123)
+  data.folds <- vfold_cv(data, v = 5)
+  
+  # Loop through folds fitting the model and calculating a c index
+  c_indices <- numeric(0)
+  for(i in 1:5){
+    
+    # Fit cox model
+    cox.model <- coxph(formula = as.formula(formula), data = analysis(data.folds$splits[[i]]))
+    
+    # Plot residuals if i = 1
+    if(i == 1){
+      # print(qqnorm(y = cox.model$residuals))
+    }
+    
+    # Fit risk scores on the validation set
+    risk.scores <- predict(cox.model, newdata = assessment(data.folds$splits[[i]]), type = "risk")
+    
+    validation.set <- assessment(data.folds$splits[[i]]) |>
+      mutate(risk.score = risk.scores)
+    
+    c_indices[i] <- ci_calc(data = validation.set, risk_scores = "risk.score", N = NA)
+  
+  }
+  
+  # Average the c index
+  c_index <- mean(unlist(c_indices))
+  
+  return(c_index)
+  
+}
+
+```
+
+## Analysis
+
+### Calculate scores and return data
+```{r}
+
+scores_and_rf_data <- eligible_dicom_uids %>%
+  append_event_data() %>% append_risk_scores(read.csv(eligible_dicoms_fn), return_data=T)
+
+```
+
+### Figure 1
+Violin plots of risk factors and Mirai
+```{r}
+
+# Create study data
+study.data <- scores_and_rf_data$output %>%
+  select('TCode', 'case_control_status', 'cumulus_reading', 'mirai_score_5y', 'gail_score',
+         'study.entry.age', 'bodysizebminow') %>%
+  left_join(scores_and_rf_data$gail_data, by='TCode') %>%
+  mutate(Race =case_when(
+    Race == 1 ~ 'White',
+    TRUE ~ 'Non-white'
+  ),
+  N_Rels = case_when(
+    N_Rels == 0 ~ '0',
+    N_Rels >= 1 ~ '1+'
+  ),
+  AgeMenCat = factor(case_when(
+    AgeMen == 99 ~ NA,
+    AgeMen < 11 ~ '< 11 years',
+    AgeMen==11 ~ '11 years',
+    AgeMen==12 ~ '12 years',
+    AgeMen ==13 ~ '13 years',
+    AgeMen >13 ~ '> 13 years'
+  )),
+  Age1stCat = factor(case_when(
+    Age1st == 98 ~ NA,
+    Age1st < 24 ~ '< 24 years',
+    Age1st >= 24 & Age1st < 26 ~ '24 - 26 years',
+    Age1st >= 26 & Age1st < 30 ~ '26 - 30 years',
+    Age1st >= 30 ~ '> 30 years'
+  )),
+  AgeCat = case_when(
+    T1 < 55 ~ '< 55 years',
+    T1 >= 55 & T1 < 65  ~ '55 - 65 years',
+    T1 >= 65 & T1 < 75 ~ '65 - 75 years',
+    T1 >= 75 ~ '> 75 years'
+  )) %>%
+  mutate(Race = factor(Race, levels=c('White', 'Non-white')))
+
+cat_vars <- c("case_control_status", "AgeCat", "AgeMenCat", "Age1stCat", "N_Biop", "N_Rels", "Race")
+var_labels <- c(
+  case_control_status = "Case/Control status",
+  AgeCat = "Age at mammography",
+  AgeMenCat = "Age at menarche",
+  Age1stCat = "Age at 1st birth",
+  N_Biop              = "Benign biopsies",
+  N_Rels              = "Family history"
+)
+
+# Recode and split into two parts
+study_recoded <- study.data %>%
+  mutate(
+    case_control_status = factor(case_control_status,
+                                 levels = c(0, 1),
+                                 labels = c("Control", "Case")),
+    N_Biop = factor(N_Biop,
+                    levels = c(0, 1),
+                    labels = c("0", "1")),
+    N_Rels = factor(N_Rels,
+                    levels = c("0", "1+"),
+                    labels = c("0", "1+"))
+  )
+
+# Part A: Case/Control status block
+long_casecontrol <- study_recoded %>%
+  select(case_control_status, mirai_score_5y) %>%
+  rename(level = case_control_status) %>%
+  mutate(variable = "case_control_status")
+
+# Part B: Other variables, restricted to controls
+long_controls <- study_recoded %>%
+  filter(case_control_status == "Control") %>%
+  select(AgeCat, AgeMenCat, Age1stCat, N_Biop, N_Rels, mirai_score_5y) %>%
+  pivot_longer(
+    cols = c(AgeCat, AgeMenCat, Age1stCat, N_Biop, N_Rels),
+    names_to = "variable",
+    values_to = "level",
+    values_drop_na = TRUE   # <- no NA categories at all
+  )
+
+
+violin_long <- bind_rows(long_casecontrol, long_controls) %>%
+  mutate(
+    variable = factor(variable, levels = c(
+      "case_control_status","AgeCat","AgeMenCat","Age1stCat","N_Biop","N_Rels" # ,"Race"
+    )),
+    level = fct_relevel(level, lvl_order)                   # <-- key line
+    # If you want NA to appear last as "Missing", uncomment:
+    # level = fct_explicit_na(level, na_level = "Missing") |> fct_relevel("Missing", after = Inf)
+  )
+
+# count non-missing observations per (variable, level)
+violin_tagged <- violin_long %>%
+  group_by(variable, level) %>%
+  mutate(n_obs = sum(!is.na(mirai_score_5y))) %>%
+  ungroup()
+
+few_data  <- dplyr::filter(violin_tagged, n_obs < 5)
+many_data <- dplyr::filter(violin_tagged, n_obs >= 5)
+
+p <- ggplot(violin_tagged, aes(x = level, y = mirai_score_5y)) +
+  geom_jitter(
+    data = many_data,
+  color = "black", alpha = 0.2, size = 1
+  ) + # Points for < 5 observations
+  geom_point(
+    data = few_data,
+    shape = 21, fill = NA, color = "black", alpha = 0.7, size = 1.7
+  ) + # Points for < 5 observations
+  geom_violin(
+    data = many_data,
+    fill = NA, linewidth = 0.6, trim = TRUE
+  ) + # Violins for >= 5 observations
+  geom_boxplot(
+    data = many_data,
+    width = 0.15, outlier.shape = NA, linewidth = 0.5
+  ) +
+  facet_grid(
+    ~ variable,
+    scales = "free_x",
+    space  = "free_x",
+    labeller = as_labeller(var_labels)
+  ) +
+  labs(x = NULL, y = "Mirai 5-year score") +
+  theme_minimal(base_size = 12) +
+  coord_trans(y = "log10") +   # transform AFTER stats
+  scale_y_continuous(
+    breaks = c(0.01, 0.02, 0.05, 0.1, 0.2),
+    labels = scales::label_number(accuracy = 0.001, trim = TRUE)
+  ) +
+  theme(
+    panel.spacing = unit(1, "lines"),
+    panel.border  = element_rect(color = "black", fill = NA, size = 1),
+    strip.background = element_rect(color = "black", size = 1),
+    panel.grid.major.x = element_blank(),
+    strip.placement = "outside",
+    strip.text.x = element_text(face = "bold"),
+    axis.text.x = element_text(angle = 30, hjust = 1),
+    axis.title.y = element_text(margin = margin(r = 14))
+  )
+
+# PNG
+ggsave(
+  filename = "../../results/plots/figure_1.png",
+  plot     = p,
+  width    = 14, height = 6, units = "in", dpi = 300,
+  bg       = "white"
+)
+
+# SVG
+ggsave(
+  filename = "../../results/plots_svg/figure_1.svg",
+  plot     = p,
+  width    = 14, height = 6, units = "in",
+  bg       = "transparent"
+)
+
+
+```
+
+### Table 1
+Descriptive table of the study population for the variables included in the GAIL model
+```{r}
+
+# Calculate level order for the table
+lvl_order <- c(
+  # case/control
+  "Control", "Case",
+  # Age at mammography
+  "< 55 years", "55 - 65 years", "65 - 75 years", "> 75 years",
+  # Age at menarche
+  "< 11 years", "11 years", "12 years", "13 years", "> 13 years",
+  # Age at 1st birth
+  "< 24 years", "24 - 26 years", "26 - 30 years", "> 30 years",
+  # Biopsies & relatives
+  "0", "1", "1+",
+  # Race (if you include it)
+  "White", "Non-white"
+)
+
+
+study.data <- scores_and_rf_data$output %>%
+  mutate(cumulus_eligible = !is.na(cumulus_reading)) |>
+  select('TCode', 'case_control_status', 'cumulus_reading', 'mirai_score_5y', 'gail_score',
+         'study.entry.age', 'bodysizebminow', 'cumulus_eligible') %>%
+  left_join(scores_and_rf_data$gail_data, by='TCode') %>%
+  mutate(Race =case_when(
+    Race == 1 ~ 'White',
+    TRUE ~ 'Non-white'
+  ),
+  N_Rels = case_when(
+    N_Rels == 0 ~ '0',
+    N_Rels >= 1 ~ '1+'
+  ),
+  AgeMenCat = factor(case_when(
+    AgeMen == 99 ~ NA,
+    AgeMen < 11 ~ '< 11 years',
+    AgeMen==11 ~ '11 years',
+    AgeMen==12 ~ '12 years',
+    AgeMen ==13 ~ '13 years',
+    AgeMen >13 ~ '> 13 years'
+  )),
+  Age1stCat = factor(case_when(
+    Age1st == 98 ~ NA,
+    Age1st < 24 ~ '< 24 years',
+    Age1st >= 24 & Age1st < 26 ~ '24 - 26 years',
+    Age1st >= 26 & Age1st < 30 ~ '26 - 30 years',
+    Age1st >= 30 ~ '> 30 years'
+  )),
+  AgeCat = case_when(
+    T1 < 55 ~ '< 55 years',
+    T1 >= 55 & T1 < 65  ~ '55 - 65 years',
+    T1 >= 65 & T1 < 75 ~ '65 - 75 years',
+    T1 >= 75 ~ '> 75 years'
+  ),
+  cumulus_eligible = if_else(cumulus_eligible, "Yes ", "No ")) %>%
+  mutate(Race = factor(Race, levels=c('White', 'Non-white')))
+
+
+            
+###########
+# Table 1 #
+###########
+
+# Demographics:
+# study.entry.age
+
+# Risk factors: # "T1", #HypPlas, "N_Biop", "AgeMen", "Age1st", "N_Rels", #Race
+# T1: Age at mammogram
+# HypPlas: History of atypical hyperplasia (0 = No, 1 = Yes, 99 = Missing)
+# N_Biop: Number of breast biopsies with benign findings
+# AgeMen: Age at menarche (Numeric, 99 = Missing)
+# Age1st: Age at first pregnancy (Numeric, 98 = Missing)
+# N_Rels: Number of first-degree relatives with breast cancer (Numeric, NA = Missing)
+# Race: Race (White, African-American, Hispana/Latina, Asian-American, American Indian or Alaskan Native, Unknown)
+# (1 = White, 2 = African-American,3 = Hispanic American, 4 = Other (Native American and Unknown), 5 = Hispanic American (Foreign-born),
+# 6 = Chinese-American, 7: Japanese-American, 8: Filipino-American, 9: Hawaiian-American, 10 = Other Pacific Islander, 11 = Other Asian)
+
+# HypPlas not shown due to absence of data.
+table.one <-
+  study.data %>% 
+  mutate(
+    case_control_status = factor(case_control_status, levels=c(0, 1), labels = c('Control', 'Case')),
+    HypPlas = factor(HypPlas, levels=c(0, 1), labels = c('No', 'Yes')),
+    N_Biop = factor(N_Biop),
+    N_Rels = factor(N_Rels),
+    AgeMen = ifelse(AgeMen != 99, AgeMen, NA),
+    Age1st = ifelse(Age1st != 98, Age1st, NA),
+    Race = factor(Race),
+    cumulus_eligible = factor(cumulus_eligible)
+  ) %>% select(case_control_status, T1, N_Biop, AgeMen, Age1st, N_Rels, Race, cumulus_eligible) |>
+  tbl_summary(
+    by = case_control_status,   # stratify by CC status
+    type = list(
+      T1 ~ "continuous",
+      AgeMen ~ "continuous",
+      Age1st ~ "continuous"
+    ),
+    label = list(
+      T1 ~ "Age at mammogram (years)",
+      #HypPlas ~ "History of atypical hyperplasia",
+      N_Biop ~ "No. benign breast biopsies",
+      AgeMen ~ "Age at menarche (years)",
+      Age1st ~ "Age at first pregnancy (years)",
+      N_Rels ~ "No. 1st-degree relatives with breast cancer",
+      Race ~ "Race/ethnicity",
+      cumulus_eligible ~ "Cumulus density measured"
+    ),
+    statistic = list(
+      all_continuous() ~ "{median} ({IQR})",
+      all_categorical() ~ "{n} ({p}%)"
+    ),
+    digits = all_continuous() ~ 1,
+    missing = "ifany"
+  ) |>
+  add_overall() |>
+  add_n() |>
+  modify_header(update = list(
+    stat_1 ~ "**Controls, N = {n}**",
+    stat_2 ~ "**Cases, N = {n}**",
+    stat_0 ~ "**Overall, N = {N}**"
+  ), label ~ "**Characteristic**") |>
+  bold_labels()
+
+
+# Print in quarto
+table.one
+
+# DOCX
+gt::gtsave(as_gt(table.one), filename = "../../results/tables/table_1.docx")
+
+```
+
+
+### Table 2
+Correlations of the MIRAI score with variables included in the GAIL model as well as mammographic density
+```{r}
+
+# Get data relevant for Table 2
+study.data <- scores_and_rf_data$output %>%
+  select('TCode', 'case_control_status', 'cumulus_reading', 'mirai_score_5y', 'gail_score',
+         'bodysizebminow') %>%
+  left_join(scores_and_rf_data$gail_data, by='TCode')
+
+# Univariable association test
+correlation <- plot_y_vs_all(study.data %>% filter(case_control_status == 0), time_adjust = F)
+
+# Clean risk factors and conduct multivariable test
+study.data.cleaned <- clean_risk_factors(study.data %>% filter(case_control_status == 0))
+preds <- c(
+  "T1", "N_Biop", "AgeMen", "Age1st", "N_Rels",
+  "cumulus_reading"
+)
+study.data.cleaned <- study.data.cleaned |>
+  mutate(across(all_of(preds),
+                ~ ifelse(is.na(.), 1, 0),
+                .names = "{.col}_NA")) %>%
+  mutate(
+    across(all_of(preds), ~ {
+      if (is.factor(.)) {
+        addNA(.)
+      } else {
+        replace(., is.na(.), 0)
+      }
+    })
+  )
+
+non_factor_preds <- preds[!sapply(study.data.cleaned[preds], is.factor)]
+na_cols <- paste0(non_factor_preds, "_NA")
+all_preds <- c(preds, na_cols)
+formula_str <- paste(all_preds, collapse = "+")
+correlation_mv <- summary(lm(as.formula(paste('qlogis(mirai_score_5y)', "~", formula_str)), data=study.data.cleaned))
+correlation_mv <- as.data.frame(correlation_mv$coefficients)
+correlation_mv$variable <- rownames(correlation_mv)
+rownames(correlation_mv) <- NULL
+correlation_mv <- correlation_mv |>
+  mutate(
+    
+    variable = case_when(
+      variable == "N_Biop1" ~ "N_Biop",
+      variable == "N_Rels1" ~ "N_Rels",
+      TRUE ~ variable
+    )
+    
+  )
+
+# Create table 2
+table2 <- as.data.frame(correlation$tests) |>
+  merge(correlation_mv, by = "variable") |>
+  mutate(variable = factor(variable, levels = c("T1", "N_Biop", "AgeMen", "Age1st", "N_Rels", "cumulus_reading"), labels = c("Age at mammogram (years)", "No. benign breast biopsies","Age at menarche (years)", "Age at first pregnancy (years)", "No. 1st-degree relatives with breast cancer", "Mammographic density"))) |>
+  arrange(variable) |>
+  select(variable, p_value_1 = p.value, p_value_2 = `Pr(>|t|)`) |>
+  mutate(across(starts_with("p_value"), function(x){
+    case_when(
+      x < 0.001 ~ "<0.001",
+      TRUE ~ sprintf("%.3f",x)
+    )
+  })) |>
+  gt() |>
+  cols_label(
+    variable ~ md("**Risk Factor**"),
+    p_value_1 ~ md("**P Value\n(Univariable)**"),
+    p_value_2 ~ md("**P Value\n(Multivariable)**")
+  )
+
+table2
+
+gtsave(table2, "../../results/tables/table_2.docx")
+
+
+```
+
+
+### Table 3
+Harrel's C-index calculated for four risk scores both in the whole study population (when possible) and the subset of the study population that contains mammographic density measured
+```{r}
+
+#############
+# Execution #
+#############
+
+study.data <- scores_and_rf_data |> 
+  mutate(gail_eligible = study.exit.age <= 90 & study.entry.age >= 20,
+         cumulus_eligible = !is.na(cumulus_reading))
+# All are Gail eligible (per >= 90yrs and <= 20 yrs criteria)
+
+# No filter: Mirai
+cindex_compldata <- ci_calc(study.data, c("gail_score", "mirai_score_5y"), N = 10)
+
+# Only non-missing Cumulus reading eligible: Cumulus and Mirai
+cindex_denssubsetdata <- ci_calc(study.data %>% filter(cumulus_eligible), c("gail_score", "cumulus_reading", "mirai_score_5y"), N = 10)
+table(cumulus_available=study.data$cumulus_eligible)
+prop.table(table(cumulus_available=study.data$cumulus_eligible))
+
+## Table Generation
+
+# Initialise dataframe
+table3 <- data.frame(risk_score = character(0), c_index = character(0), c_index_sub = character(0))
+
+for(score in names(cindex_denssubsetdata)){
+  
+  # Get subset C-index and CI
+  ci_sub <- cindex_denssubsetdata[[score]]
+  ci_sub <- paste0(sprintf("%.3f",ci_sub$cindex), " (", sprintf("%.3f",ci_sub$lower), ", ",sprintf("%.3f",ci_sub$upper), ")")
+  
+  # If it is in complete then grab that if not just output "-"
+  if(score %in% names(cindex_compldata)){
+    
+    ci <- cindex_compldata[[score]]
+    ci <- paste0(sprintf("%.3f",ci$cindex), " (", sprintf("%.3f",ci$lower), ", ", sprintf("%.3f",ci$upper), ")")
+    
+  } else {
+    
+    ci <- "-"
+    
+  }
+  
+  table3[nrow(table3) + 1,] <- c(score, ci, ci_sub)
+  
+}
+
+# Table formatting
+table3_gt <- table3 |>
+  filter(risk_score != "iCARE_Lit_risk_5") |>
+  mutate(risk_score = factor(risk_score, levels = c("gail_score", "mirai_score_5y", "cumulus_reading"), labels = c("GAIL", "Mirai", "Cumulus"))) |>
+  arrange(risk_score) |>
+  gt() |>
+  cols_label(
+    risk_score = md("**Risk Score**"),
+    c_index = md("**C-Index (95% CI)**"),
+    c_index_sub = md("**C-Index (95% CI)\n(Subset)**")
+  )
+
+table3_gt
+  
+# Save to docx
+gtsave(table3_gt, "../../results/tables/table_3.docx")
+
+```
+
+### Table 4
+
+Hazard ratios for univariable and multivariable cox regression
+
+```{r}
+
+# Create study.data
+study.data <- scores_and_rf_data$output |>
+  mutate(cumulus_eligible = !is.na(cumulus_reading))
+
+# Loop through combinations of the risk scores
+all_risk_scores <- c("gail_score", "mirai_score_5y", "cumulus_reading")
+risk_score_combinations <- lapply(1:length(all_risk_scores), function(m) combn(all_risk_scores, m, simplify = FALSE))
+risk_score_combinations <- unlist(risk_score_combinations, recursive = FALSE)
+
+# study.data <- study.data |>
+#     mutate(gail_score_cat = cut(gail_score, breaks = quantile(gail_score, c(0, 0.33, 0.66, 1)))) |>
+#     mutate(mirai_score_5y_cat = cut(mirai_score_5y, breaks = quantile(mirai_score_5y, c(0, 0.33, 0.66, 1)))) |>
+#     mutate(cumulus_reading_cat = cut(cumulus_reading, breaks = quantile(cumulus_reading, c(0, 0.33, 0.66, 1), na.rm = T)))
+# 
+# for(score in all_risk_scores){
+#   
+#   formula <- paste0("Surv(time = pmin(study.exit.age - study.entry.age, time.of.onset), event = case_control_status) ~ ", score, "_cat")
+#   # formula <- paste0("Surv(time = study.entry.age, time2 = pmin(study.exit.age, study.entry.age + time.of.onset), event = case_control_status) ~ ", score, "_cat")
+#   kmfit <- survfit(as.formula(formula), data = study.data)
+#   
+#   plot(kmfit, lty = c("solid", "dashed"), col = c("black", "grey"), xlab = "Survival Time In Years", ylab = "Survival Probabilities")
+#   
+# }
+
+  
+# Initialise output table
+table4 <- data.frame(risk.score = all_risk_scores)
+col <- 0
+
+for(comb in risk_score_combinations){
+
+  # Write formula for cox regression
+  formula <- paste0("Surv(time = pmin(study.exit.age - study.entry.age, time.of.onset), event = case_control_status) ~ ", paste0(paste0(comb), collapse = " + "))
+
+  # # Write formula for cox regression
+  # formula <- paste0("Surv(time = study.entry.age, time2 = pmin(study.exit.age, study.entry.age + time.of.onset), event = case_control_status) ~ ", paste0(paste0(comb), collapse = " + "))
+  
+  # If formula contains density, add eliglble tag
+  if("cumulus_reading" %in% comb){
+    formula <- paste0(formula, "+ cumulus_eligible")
+  }
+  
+  # Define data to fit cox model on
+  cox.data <- study.data |>
+    mutate(gail_score = gail_score/100) |>
+    mutate(cumulus_reading = cumulus_reading/100) |>
+    mutate(across(all_of(all_risk_scores), function(x){
+      qlogis(x)
+    })) |>
+    mutate(across(all_of(all_risk_scores), function(x){
+      x/sd(x, na.rm = T)
+    })) |>
+    mutate(cumulus_reading = na.replace(cumulus_reading, 0.5))
+  
+  cox.model <- coxph(formula = as.formula(formula), data = cox.data)
+  
+  print(comb)
+  
+  cox.data <- cox.data |>
+    mutate(score = cox.model$linear.predictors)
+  
+  ci <- ci_calc(cox.data, risk_scores = "score", N = NA)
+  print(ci)
+  
+  # Add to univariable column if necessary
+  if(length(comb) == 1){
+    
+    hazard_ratio <- summary(cox.model)$conf.int |>
+      as.data.frame() |>
+      filter(row_number() != n() | !"cumulus_reading" %in% comb) |>
+      mutate(risk.score = comb) |>
+      mutate(univ = paste0(sprintf("%.3f", `exp(coef)`), " (", sprintf("%.3f",`lower .95`), ", ", sprintf("%.3f", `upper .95`), ")")) |>
+      pull(univ)
+    
+    if(!"univ" %in% names(table4)){
+      table4$univ <- NA
+    }
+    
+    table4 <- table4 |>
+      mutate(
+        univ = if_else(risk.score == comb, hazard_ratio, univ)
+      )
+    
+  } else {
+    
+    # Iterate through columns
+    col <- col + 1
+    
+    hazard_ratio <- summary(cox.model)$conf.int |>
+      as.data.frame() |>
+      filter(row_number() != n() | !"cumulus_reading" %in% comb) |>
+      mutate(risk.score = comb) |>
+      mutate(!!sym(paste0("mv_", col)) := paste0(sprintf("%.3f", `exp(coef)`), " (", sprintf("%.3f",`lower .95`), ", ", sprintf("%.3f", `upper .95`), ")")) |>
+      select(risk.score, paste0("mv_", col))
+    
+    table4 <- table4 |>
+      merge(hazard_ratio, by = "risk.score", all.x = T)
+    
+  }
+  
+  
+}
+
+
+# Formatting the table
+table4_gt <- table4 |>
+  mutate(
+    
+    risk.score = case_when(
+      risk.score == "gail_score" ~ "GAIL",
+      risk.score == "mirai_score_5y"~ "Mirai",
+      risk.score == "cumulus_reading" ~ "Cumulus"
+    )
+    
+  ) |>
+  mutate(across(everything(), function(x){
+    na.replace(x, "-")
+  })) |>
+  gt() |>
+  tab_spanner(
+    label = md("**HR (95% CI)\n(Univariable)**"),
+    columns = univ
+  ) |>
+  tab_spanner(
+    label = md("**HR (95% CI)\nMultivariable**"),
+    columns = all_of(starts_with("mv_"))
+  )
+  
+table4_gt
+
+# Save to docx
+gtsave(table4_gt, "../../results/tables/table_4.docx")
+```
+
+
+```{r}
+
+
+Y = Surv(addicts$survt, addicts$status == 1)
+
+```
