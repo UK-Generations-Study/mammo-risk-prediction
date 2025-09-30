@@ -38,6 +38,27 @@ eligible_dicom_uids <- read.csv(eligible_dicoms_fn)
 study.data <- eligible_dicom_uids %>%
   append_event_data() %>% append_risk_scores(eligible_dicom_uids)
 
+# Appending Transpara density
+transpara_results_fn <- "../../../../transpara/transpara_risk/results/result.csv"
+transpara_results <- read.csv(transpara_results_fn)
+transpara_checkpoint_fn <- "../../../../transpara/transpara_risk/checkpoint/checkpoint.csv"
+transpara_checkpoint <- read.csv(transpara_checkpoint_fn)
+study.data.merged <- study.data %>% left_join(transpara_results, by = c('TCode' = 'accession'))
+study.data.merged$avg_volumetric_breast_density <- (study.data.merged$volumetric_breast_density_left +
+                                                      study.data.merged$volumetric_breast_density_right) / 2
+plot(
+  study.data.merged$cumulus_reading,
+  study.data.merged$avg_volumetric_breast_density,
+  xlim = c(0, 100),
+  ylim = c(0, 100),
+  xlab = "Cumulus Density",
+  ylab = "Transpara Density",
+  main = "Cumulus vs Transpara Density (n=231)"
+)
+abline(0, 1, col = "red", lwd = 2, lty = 2)
+
+with(study.data.merged %>% filter(!is.na(cumulus_reading), !is.na(avg_volumetric_breast_density)), cor(cumulus_reading, avg_volumetric_breast_density))
+
 # Calculating residuals of mirai score (Y) ~ cumulus reading (X)
 study.data <- study.data |>
   mutate(mirai_score_5y_sans_cumulus = residuals(lm(

@@ -7,7 +7,7 @@
 competing_mort_rates <- function(icd_code = "C50"){
   
   # Read in mortality data
-  data_mort <- read_excel("//rds/data/DGE/DUDGE/INCANEPI/Generations/Projects/mammo_risk_prediction/data/icare-lit-r-dependencies/dr2022corrected.xlsx", sheet = "6")
+  data_mort <- read_excel("//rds/data/DGE/DUDGE/INCANEPI/Generations/Projects/mammo_risk_prediction/mirai/data/icare-lit-r-dependencies/dr2022corrected.xlsx", sheet = "6")
   
   # Clean mortality data
   colnames(data_mort) <- data_mort[4,]
@@ -43,7 +43,7 @@ competing_mort_rates <- function(icd_code = "C50"){
   
   
   # Read in cancer mortality data
-  data_cancer_mort <- read.csv("//rds/data/DGE/DUDGE/INCANEPI/Generations/Projects/mammo_risk_prediction/data/icare-lit-r-dependencies/Mortality_data_for_England_2024-11-12.csv")
+  data_cancer_mort <- read.csv("//rds/data/DGE/DUDGE/INCANEPI/Generations/Projects/mammo_risk_prediction/mirai/data/icare-lit-r-dependencies/Mortality_data_for_England_2024-11-12.csv")
   
   data_cancer_mort <- data_cancer_mort  |>
     filter(Year == 2006) |>
@@ -84,7 +84,7 @@ competing_mort_rates <- function(icd_code = "C50"){
     )
   
   # Read in population data
-  data_pop <- read_excel("//rds/data/DGE/DUDGE/INCANEPI/Generations/Projects/mammo_risk_prediction/data/icare-lit-r-dependencies/regionalpopestimatesenglandandwales19712023.xlsx", sheet = "Table 4", na = "missing data")
+  data_pop <- read_excel("//rds/data/DGE/DUDGE/INCANEPI/Generations/Projects/mammo_risk_prediction/data/mirai/icare-lit-r-dependencies/regionalpopestimatesenglandandwales19712023.xlsx", sheet = "Table 4", na = "missing data")
   
   colnames(data_pop) <- data_pop[1,]
   data_pop <- data_pop[-1,]

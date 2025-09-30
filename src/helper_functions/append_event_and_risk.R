@@ -25,7 +25,7 @@ dicom_metadata_fn <- "//rds/data/DGE/DUDGE/Shared/GENERATIONS/CoreData/v20230927
 set_metadata_fn <- "//rds/data/DGE/DUDGE/Shared/GENERATIONS/CoreData/v20230927/RDSCCMammoSet_v1.csv"
 
 # Append incident cancers to passed DICOM UIDs
-append_event_data <- function(eligible_dicom_uids, dicom_metadata = NULL, set_metadata = NULL)  {
+append_event_data <- function(eligible_dicom_uids, dicom_metadata = NULL, set_metadata = NULL, years_fup = NA)  {
   #browser()
   if(length(dim(eligible_dicom_uids))) # Handle passing dataframe
     eligible_dicom_uids <- eligible_dicom_uids[,1]
@@ -47,7 +47,7 @@ append_event_data <- function(eligible_dicom_uids, dicom_metadata = NULL, set_me
   
   # Create analytical population
   study_data <- dicom_data |>
-    do(create_analytical_dataset(., years = NA, cancer = "all_breast", fup_start_date = "StudyDate_m"))
+    do(create_analytical_dataset(., years = years_fup, cancer = "all_breast", fup_start_date = "StudyDate_m"))
   
   study_data <- study_data |>
     mutate(
@@ -104,13 +104,13 @@ append_risk_scores <- function(data, eligible_dicom_uids, return_data=F) {
     merge(gail_output$scores, by = "TCode", all.x = T)
   
   # Append iCARE-Lit scores
-  iCARE_output <- iCARE_Lit_score_generation(data |> select(TCode, study.entry.age))
+  #iCARE_output <- iCARE_Lit_score_generation(data |> select(TCode, study.entry.age))
   
-  data <- data |>
-    merge(iCARE_output$scores, by = "TCode", all.x = T)
+  #data <- data |>
+  #  merge(iCARE_output$scores, by = "TCode", all.x = T)
   
   if(return_data)
-    return(list(output=data, gail_data=gail_output$data, iCARE_Lit_data = iCARE_output$data))
+    return(list(output=data, gail_data=gail_output$data, iCARE_Lit_data = NA))#iCARE_output$data))
   else
     return(data)
 }

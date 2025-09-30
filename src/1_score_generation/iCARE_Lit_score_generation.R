@@ -268,8 +268,8 @@ iCARE_Lit_score_generation <- function(df){
   iCARE_Lit_ref_oe50 <- read.csv("//rds/data/DGE/DUDGE/INCANEPI/Generations/Projects/synthetic_population/populations/730919/iCARE_lit_oe50.csv")
   
   # Read in model dependencies
-  load("//rds/data/DGE/DUDGE/INCANEPI/Generations/Projects/mammo_risk_prediction/data/icare-lit-r-dependencies/US_lit_lt50_inputs.Rda")
-  load("//rds/data/DGE/DUDGE/INCANEPI/Generations/Projects/mammo_risk_prediction/data/icare-lit-r-dependencies/US_lit_ge50_inputs.Rda")
+  load("//rds/data/DGE/DUDGE/INCANEPI/Generations/Projects/mammo_risk_prediction/mirai/data/icare-lit-r-dependencies/US_lit_lt50_inputs.Rda")
+  load("//rds/data/DGE/DUDGE/INCANEPI/Generations/Projects/mammo_risk_prediction/mirai/data/icare-lit-r-dependencies/US_lit_ge50_inputs.Rda")
   
   # need to reorder names of the reference dataset
   colnames_in_order <- unlist(lapply(cov_info_lit_lt50, function(x){return(x$name)}))
@@ -278,12 +278,12 @@ iCARE_Lit_score_generation <- function(df){
   iCARE_Lit_ref_oe50 <- iCARE_Lit_ref_oe50[,colnames_in_order]
   
   # incidence rates
-  source("//rds/data/DGE/DUDGE/INCANEPI/Generations/Projects/mammo_risk_prediction/repo_reuben/src/helper_functions/invasive_cancer_rates.R")
+  source("//rds/data/DGE/DUDGE/INCANEPI/Generations/Projects/mammo_risk_prediction/mirai/repo_reuben/src/helper_functions/invasive_cancer_rates.R")
   bc_inc_UK <- suppressMessages(invasive_cancer_rates())
   # bc_inc_UK_rates <- bc_inc_UK$rate
   
   # competing mortality rates
-  source("//rds/data/DGE/DUDGE/INCANEPI/Generations/Projects/mammo_risk_prediction/repo_reuben/src/helper_functions/competing_mortality.R")
+  source("//rds/data/DGE/DUDGE/INCANEPI/Generations/Projects/mammo_risk_prediction/mirai/repo_reuben/src/helper_functions/competing_mortality.R")
   mort_UK <- suppressMessages(competing_mort_rates())
   
   # Run risk scores
