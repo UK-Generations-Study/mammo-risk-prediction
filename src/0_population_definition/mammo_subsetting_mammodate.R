@@ -41,7 +41,8 @@ subset_step2 <- subset_step1 %>% filter(PresentationIntentType == 'FOR PRESENTAT
 with(subset_step2, table(ManuModelName, Manufacturer)) 
 
 # 3. Exclusion of DICOMs for which we have no information on the date the mammogram was taken.
-subset_step3 <- subset_step2 %>% left_join(data_mammo_set %>% dplyr::select(SOPInstanceUID, MammoDate, YearOfMammo), by = 'SOPInstanceUID') %>%
+# Also filtering the mammoset to exclude those collected for USD Study Only
+subset_step3 <- subset_step2 %>% left_join(data_mammo_set %>% filter(Comments != "USD Study Only") |> dplyr::select(SOPInstanceUID, MammoDate, YearOfMammo), by = 'SOPInstanceUID') %>%
   filter(MammoDate != 'NULL')
 
 # 4. "all four standard views" (L CC, L MLO, R CC, and R MLO)
@@ -348,7 +349,7 @@ setdiff(subset_step9c$SOPInstanceUID, eligible_dicomuids_mammodate_strategyB_cum
 
 write.csv(data.frame(SOPInstanceUID = subset_step9c$SOPInstanceUID), r"(../../../data/eligible_dicomuids_mammodate_strategyB_cumulus_updated.csv)")
 write.csv(data.frame(SOPInstanceUID = setdiff(subset_step9c$SOPInstanceUID, eligible_dicomuids_mammodate_strategyB_cumulus$SOPInstanceUID)),
-          r"(../../../data/eligible_dicomuids_request_sep18.csv)")
+          r"(../../../data/eligible_dicomuids_request_oct22.csv)")
 
 # tcodes_new <- data_mammo_set %>% 
 #   filter(SOPInstanceUID %in% (setdiff(eligible_dicomuids_mammodate_strategyB$SOPInstanceUID,
