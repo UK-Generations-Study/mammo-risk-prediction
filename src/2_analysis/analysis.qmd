@@ -50,6 +50,24 @@ eligible_dicoms_fn <- "../../../data/eligible_dicomuids_mammodate_strategyB_cumu
 # Read in data and calculate risk scores
 eligible_dicom_uids <- read.csv(eligible_dicoms_fn)
 
+# Read in MammoSet
+data_mammoset <- read.csv("//rds/data/DGE/DUDGE/Shared/GENERATIONS/CoreData/v20230927/RDSCCMammoSet_v1.csv")
+
+# Remove from eligible UIDs those selected for USD Study
+eligible_dicom_uids <- eligible_dicom_uids |>
+  filter(!SOPInstanceUID %in% data_mammoset$SOPInstanceUID[data_mammoset$Comments == "USD Study Only"])
+
+# Read in images data to get case/control status from selection
+cc_selection <- data_mammoset |>
+  group_by(TCode) |>
+  summarise(cc_status = first(CaseControlRequestStatus)) |>
+  mutate(cc_status = if_else(cc_status == 2, 0, cc_status))
+
+# Read in year of entry to study
+year.entry <- read.csv("//rds/data/DGE/DUDGE/Shared/GENERATIONS/TrueYears/RDSTrueYear.csv") |>
+  select(TCode, Entry)
+  
+
 ```
 
 ### Read in appropriate functions
@@ -84,15 +102,15 @@ assoc_tests <- function(df, y, preds, time_adjust = TRUE, multivariable = FALSE)
     map_dfr(preds, ~{
       predictor_name <- .x
       formula_str <- if (time_adjust) {
-        paste('qlogis(',y,')', "~", predictor_name, "+ time_start_to_mammo")
+        paste('qlogis(',y,'/100)', "~", predictor_name, "+ time_start_to_mammo")
       } else {
-        paste('qlogis(',y,')', "~", predictor_name)
+        paste('qlogis(',y,'/100)', "~", predictor_name)
       }
       
       lm(as.formula(formula_str), data = df %>% filter(!is.na(!!sym(predictor_name)))) %>%
         tidy() %>%
         filter(startsWith(term, predictor_name)) %>%
-        select(statistic = estimate, p.value) %>%
+        select(statistic = estimate, se = std.error, p.value) %>%
         mutate(
           variable = predictor_name,
           test = "lm",
@@ -219,15 +237,82 @@ five_fold_ci <- function(formula, data){
 scores_and_rf_data <- eligible_dicom_uids %>%
   append_event_data() %>% append_risk_scores(read.csv(eligible_dicoms_fn), return_data=T)
 
+scores_and_rf_data$output <- scores_and_rf_data$output |>
+  # Need MIRAI scale to be different
+  mutate(mirai_score_5y = 100*mirai_score_5y) |>
+  merge(cc_selection, by = "TCode", all.x = T)
+
+# Tabulate request CC status with calculated CC status from time of mammogram
+with(scores_and_rf_data$output, table(cc_status, is.finite(time.of.onset)))
+
+# Get cancer-free time from study entry for those included
+cancer.free.time <- scores_and_rf_data$output |>
+  select(TCode) |>
+  do(create_analytical_dataset(., cancer = "all_breast")) |>
+  mutate(cancer.free.time = pmin(study.exit.age - study.entry.age, time.of.onset)) |>
+  select(TCode, cancer.free.time)
+
+```
+
+### Create matching variables
+```{r}
+
+scores_and_rf_data$output <- scores_and_rf_data$output |>
+  merge(cancer.free.time, by = "TCode", all.x = T) |>
+  merge(year.entry, by = "TCode", all.x = T) |>
+  mutate(
+    
+    cancer.free.time.mammo = pmin(study.exit.age - study.entry.age, time.of.onset),
+    
+    match.entry.age.mammo = cut(study.entry.age, breaks = seq(10, 110, by = 5)),
+    
+    match.entry.age = cut(AgeatEntry, breaks = seq(10, 110, by = 5)),
+    match.entry.age = if_else(match.entry.age == "(30,35]", "(35,40]", match.entry.age),
+    
+    match.ethnicity = as.factor(if_else(ethnew5 == 1, 1, 0)),
+    match.year.entry = case_when(
+      Entry <= 2005 ~ "<=2005",
+      Entry >= 2008 ~ ">=2008",
+      TRUE ~ as.character(Entry)
+    ),
+    
+    match.year.mammo = as.numeric(Entry) + (study.entry.age - AgeatEntry),
+    
+    # match.cancer.free.time = cut(floor(cancer.free.time), breaks = seq(0, 15, by = 3)),
+    match.cancer.free.time = case_when(
+      cancer.free.time < 10 ~ "[0,10)",
+      cancer.free.time <13 ~ "[10,13)",
+      TRUE ~ "[13,16)"
+    ),
+    match.cancer.free.time.mammo = cut(cancer.free.time.mammo, breaks = seq(0, 12, by = 2))
+    
+  )
+
 ```
 
 ### Figure 1
 Violin plots of risk factors and Mirai
 ```{r}
 
+# Calculate level order for the table
+lvl_order <- c(
+  # case/control
+  "Control", "Case",
+  # Age at mammography
+  "< 55 years", "55 - 65 years", "65 - 75 years", "> 75 years",
+  # Age at menarche
+  "< 11 years", "11 years", "12 years", "13 years", "> 13 years",
+  # Age at 1st birth
+  "< 24 years", "24 - 26 years", "26 - 30 years", "> 30 years",
+  # Biopsies & relatives
+  "0", "1", "1+"
+  # # Race (if you include it)
+  # "White", "Non-white"
+)
+
 # Create study data
 study.data <- scores_and_rf_data$output %>%
-  select('TCode', 'case_control_status', 'cumulus_reading', 'mirai_score_5y', 'gail_score',
+  select('TCode', 'cc_status', 'cumulus_reading', 'mirai_score_5y', 'gail_score',
          'study.entry.age', 'bodysizebminow') %>%
   left_join(scores_and_rf_data$gail_data, by='TCode') %>%
   mutate(Race =case_when(
@@ -258,23 +343,29 @@ study.data <- scores_and_rf_data$output %>%
     T1 >= 55 & T1 < 65  ~ '55 - 65 years',
     T1 >= 65 & T1 < 75 ~ '65 - 75 years',
     T1 >= 75 ~ '> 75 years'
-  )) %>%
+    )
+  ) %>%
+  group_by(cc_status) |>
+  mutate(
+    CumulusCat = cut(cumulus_reading, breaks = quantile(cumulus_reading, c(0,0.25,0.5, 0.75,1), na.rm = T))
+  ) |>
   mutate(Race = factor(Race, levels=c('White', 'Non-white')))
 
-cat_vars <- c("case_control_status", "AgeCat", "AgeMenCat", "Age1stCat", "N_Biop", "N_Rels", "Race")
+cat_vars <- c("cc_status", "AgeCat", "AgeMenCat", "Age1stCat", "N_Biop", "N_Rels", "Race","CumulusCat")
 var_labels <- c(
-  case_control_status = "Case/Control status",
+  cc_status = "Case/Control status",
   AgeCat = "Age at mammography",
   AgeMenCat = "Age at menarche",
   Age1stCat = "Age at 1st birth",
   N_Biop              = "Benign biopsies",
-  N_Rels              = "Family history"
+  N_Rels              = "Family history",
+  CumulusCat = "Breast Density Quartile"
 )
 
 # Recode and split into two parts
 study_recoded <- study.data %>%
   mutate(
-    case_control_status = factor(case_control_status,
+    cc_status = factor(cc_status,
                                  levels = c(0, 1),
                                  labels = c("Control", "Case")),
     N_Biop = factor(N_Biop,
@@ -282,21 +373,24 @@ study_recoded <- study.data %>%
                     labels = c("0", "1")),
     N_Rels = factor(N_Rels,
                     levels = c("0", "1+"),
-                    labels = c("0", "1+"))
+                    labels = c("0", "1+")),
+    CumulusCat = factor(CumulusCat,
+                        levels = c("(1.68,6.88]", "(6.88,12.4]", "(12.4,20.6]", "(20.6,46.9]"),
+                        labels = c("1", "2", "3", "4"))
   )
 
 # Part A: Case/Control status block
 long_casecontrol <- study_recoded %>%
-  select(case_control_status, mirai_score_5y) %>%
-  rename(level = case_control_status) %>%
-  mutate(variable = "case_control_status")
+  select(cc_status, mirai_score_5y) %>%
+  rename(level = cc_status) %>%
+  mutate(variable = "cc_status")
 
 # Part B: Other variables, restricted to controls
 long_controls <- study_recoded %>%
-  filter(case_control_status == "Control") %>%
-  select(AgeCat, AgeMenCat, Age1stCat, N_Biop, N_Rels, mirai_score_5y) %>%
+  filter(cc_status == "Control") %>%
+  select(AgeCat, AgeMenCat, Age1stCat, N_Biop, N_Rels, CumulusCat, mirai_score_5y) %>%
   pivot_longer(
-    cols = c(AgeCat, AgeMenCat, Age1stCat, N_Biop, N_Rels),
+    cols = c(AgeCat, AgeMenCat, Age1stCat, N_Biop, N_Rels, CumulusCat),
     names_to = "variable",
     values_to = "level",
     values_drop_na = TRUE   # <- no NA categories at all
@@ -306,7 +400,7 @@ long_controls <- study_recoded %>%
 violin_long <- bind_rows(long_casecontrol, long_controls) %>%
   mutate(
     variable = factor(variable, levels = c(
-      "case_control_status","AgeCat","AgeMenCat","Age1stCat","N_Biop","N_Rels" # ,"Race"
+      "cc_status","AgeCat","AgeMenCat","Age1stCat","N_Biop","N_Rels","CumulusCat" # ,"Race"
     )),
     level = fct_relevel(level, lvl_order)                   # <-- key line
     # If you want NA to appear last as "Missing", uncomment:
@@ -367,7 +461,7 @@ p <- ggplot(violin_tagged, aes(x = level, y = mirai_score_5y)) +
 ggsave(
   filename = "../../results/plots/figure_1.png",
   plot     = p,
-  width    = 14, height = 6, units = "in", dpi = 300,
+  width    = 18, height = 6, units = "in", dpi = 300,
   bg       = "white"
 )
 
@@ -375,7 +469,7 @@ ggsave(
 ggsave(
   filename = "../../results/plots_svg/figure_1.svg",
   plot     = p,
-  width    = 14, height = 6, units = "in",
+  width    = 18, height = 6, units = "in",
   bg       = "transparent"
 )
 
@@ -404,9 +498,9 @@ lvl_order <- c(
 
 
 study.data <- scores_and_rf_data$output %>%
-  mutate(cumulus_eligible = !is.na(cumulus_reading)) |>
-  select('TCode', 'case_control_status', 'cumulus_reading', 'mirai_score_5y', 'gail_score',
-         'study.entry.age', 'bodysizebminow', 'cumulus_eligible') %>%
+  # mutate(cumulus_eligible = !is.na(cumulus_reading)) |>
+  select('TCode', 'cc_status', 'cumulus_reading', 'mirai_score_5y', 'gail_score',
+         'study.entry.age', 'bodysizebminow') %>%
   left_join(scores_and_rf_data$gail_data, by='TCode') %>%
   mutate(Race =case_when(
     Race == 1 ~ 'White',
@@ -437,7 +531,8 @@ study.data <- scores_and_rf_data$output %>%
     T1 >= 65 & T1 < 75 ~ '65 - 75 years',
     T1 >= 75 ~ '> 75 years'
   ),
-  cumulus_eligible = if_else(cumulus_eligible, "Yes ", "No ")) %>%
+  # cumulus_eligible = if_else(cumulus_eligible, "Yes ", "No ")
+  ) %>%
   mutate(Race = factor(Race, levels=c('White', 'Non-white')))
 
 
@@ -464,21 +559,22 @@ study.data <- scores_and_rf_data$output %>%
 table.one <-
   study.data %>% 
   mutate(
-    case_control_status = factor(case_control_status, levels=c(0, 1), labels = c('Control', 'Case')),
+    cc_status = factor(cc_status, levels=c(0, 1), labels = c('Control', 'Case')),
     HypPlas = factor(HypPlas, levels=c(0, 1), labels = c('No', 'Yes')),
     N_Biop = factor(N_Biop),
     N_Rels = factor(N_Rels),
     AgeMen = ifelse(AgeMen != 99, AgeMen, NA),
     Age1st = ifelse(Age1st != 98, Age1st, NA),
     Race = factor(Race),
-    cumulus_eligible = factor(cumulus_eligible)
-  ) %>% select(case_control_status, T1, N_Biop, AgeMen, Age1st, N_Rels, Race, cumulus_eligible) |>
+    # cumulus_eligible = factor(cumulus_eligible)
+  ) %>% select(cc_status, T1, N_Biop, AgeMen, Age1st, N_Rels, Race, cumulus_reading) |>
   tbl_summary(
-    by = case_control_status,   # stratify by CC status
+    by = cc_status,   # stratify by CC status
     type = list(
       T1 ~ "continuous",
       AgeMen ~ "continuous",
-      Age1st ~ "continuous"
+      Age1st ~ "continuous",
+      cumulus_reading ~ "continuous"
     ),
     label = list(
       T1 ~ "Age at mammogram (years)",
@@ -488,7 +584,7 @@ table.one <-
       Age1st ~ "Age at first pregnancy (years)",
       N_Rels ~ "No. 1st-degree relatives with breast cancer",
       Race ~ "Race/ethnicity",
-      cumulus_eligible ~ "Cumulus density measured"
+      cumulus_reading ~ "Cumulus breast density (%)"
     ),
     statistic = list(
       all_continuous() ~ "{median} ({IQR})",
@@ -497,12 +593,10 @@ table.one <-
     digits = all_continuous() ~ 1,
     missing = "ifany"
   ) |>
-  add_overall() |>
   add_n() |>
   modify_header(update = list(
     stat_1 ~ "**Controls, N = {n}**",
-    stat_2 ~ "**Cases, N = {n}**",
-    stat_0 ~ "**Overall, N = {N}**"
+    stat_2 ~ "**Cases, N = {n}**"
   ), label ~ "**Characteristic**") |>
   bold_labels()
 
@@ -553,7 +647,7 @@ non_factor_preds <- preds[!sapply(study.data.cleaned[preds], is.factor)]
 na_cols <- paste0(non_factor_preds, "_NA")
 all_preds <- c(preds, na_cols)
 formula_str <- paste(all_preds, collapse = "+")
-correlation_mv <- summary(lm(as.formula(paste('qlogis(mirai_score_5y)', "~", formula_str)), data=study.data.cleaned))
+correlation_mv <- summary(lm(as.formula(paste('qlogis(mirai_score_5y/100)', "~", formula_str)), data=study.data.cleaned))
 correlation_mv <- as.data.frame(correlation_mv$coefficients)
 correlation_mv$variable <- rownames(correlation_mv)
 rownames(correlation_mv) <- NULL
@@ -570,10 +664,22 @@ correlation_mv <- correlation_mv |>
 
 # Create table 2
 table2 <- as.data.frame(correlation$tests) |>
+  # Process to get beta value with CI
+  mutate(
+    upper.ci = statistic + qnorm(0.975)*se,
+    lower.ci = statistic + qnorm(0.025)*se,
+    beta_1 = paste0(sprintf("%.3f", statistic), " (", sprintf("%.3f",lower.ci), ", ", sprintf("%.3f", upper.ci), ")")
+  ) |> 
   merge(correlation_mv, by = "variable") |>
+  # Process to get MV beta value with CI
+  mutate(
+    upper.ci = Estimate + qnorm(0.975)*`Std. Error`,
+    lower.ci = Estimate + qnorm(0.025)*`Std. Error`,
+    beta_2 = paste0(sprintf("%.3f", Estimate), " (", sprintf("%.3f",lower.ci), ", ", sprintf("%.3f", upper.ci), ")")
+  ) |>
   mutate(variable = factor(variable, levels = c("T1", "N_Biop", "AgeMen", "Age1st", "N_Rels", "cumulus_reading"), labels = c("Age at mammogram (years)", "No. benign breast biopsies","Age at menarche (years)", "Age at first pregnancy (years)", "No. 1st-degree relatives with breast cancer", "Mammographic density"))) |>
   arrange(variable) |>
-  select(variable, p_value_1 = p.value, p_value_2 = `Pr(>|t|)`) |>
+  select(variable, beta_1, p_value_1 = p.value, beta_2, p_value_2 = `Pr(>|t|)`) |>
   mutate(across(starts_with("p_value"), function(x){
     case_when(
       x < 0.001 ~ "<0.001",
@@ -583,8 +689,18 @@ table2 <- as.data.frame(correlation$tests) |>
   gt() |>
   cols_label(
     variable ~ md("**Risk Factor**"),
-    p_value_1 ~ md("**P Value\n(Univariable)**"),
-    p_value_2 ~ md("**P Value\n(Multivariable)**")
+    beta_1 ~ md("**Beta (95% CI)**"),
+    p_value_1 ~ md("**P Value**"),
+    beta_2 ~ md("**Beta (95% CI)**"),
+    p_value_2 ~ md("**P Value**")
+  ) |>
+  tab_spanner(
+    label = md("*Univariable*"),
+    columns = c("beta_1", "p_value_1")
+  ) |>
+  tab_spanner(
+    label = md("*Multivariable*"),
+    columns = c("beta_2", "p_value_2")
   )
 
 table2
@@ -594,218 +710,162 @@ gtsave(table2, "../../results/tables/table_2.docx")
 
 ```
 
-
 ### Table 3
-Harrel's C-index calculated for four risk scores both in the whole study population (when possible) and the subset of the study population that contains mammographic density measured
+AUC calculated for three risk scores considered both in the whole study population (when possible) and the subset of the study population that contains density measured
 ```{r}
 
-#############
-# Execution #
-#############
+# Initialise table 3
+table3 <- data.frame(score = character(0), AUC = character(0), AUC_2 = character(0))
 
-study.data <- scores_and_rf_data |> 
-  mutate(gail_eligible = study.exit.age <= 90 & study.entry.age >= 20,
-         cumulus_eligible = !is.na(cumulus_reading))
-# All are Gail eligible (per >= 90yrs and <= 20 yrs criteria)
+for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
 
-# No filter: Mirai
-cindex_compldata <- ci_calc(study.data, c("gail_score", "mirai_score_5y"), N = 10)
-
-# Only non-missing Cumulus reading eligible: Cumulus and Mirai
-cindex_denssubsetdata <- ci_calc(study.data %>% filter(cumulus_eligible), c("gail_score", "cumulus_reading", "mirai_score_5y"), N = 10)
-table(cumulus_available=study.data$cumulus_eligible)
-prop.table(table(cumulus_available=study.data$cumulus_eligible))
-
-## Table Generation
-
-# Initialise dataframe
-table3 <- data.frame(risk_score = character(0), c_index = character(0), c_index_sub = character(0))
-
-for(score in names(cindex_denssubsetdata)){
+  # Fit model calculating score using matching variables
+  model1 <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.ethnicity + match.year.entry + match.cancer.free.time")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$cc_status == 0,])
   
-  # Get subset C-index and CI
-  ci_sub <- cindex_denssubsetdata[[score]]
-  ci_sub <- paste0(sprintf("%.3f",ci_sub$cindex), " (", sprintf("%.3f",ci_sub$lower), ", ",sprintf("%.3f",ci_sub$upper), ")")
+  scores_and_rf_data$output$model1_pred <- NA
+  scores_and_rf_data$output$model1_pred[!is.na(scores_and_rf_data$output[[score]])] <- predict(model1, scores_and_rf_data$output[!is.na(scores_and_rf_data$output[[score]]),])
   
-  # If it is in complete then grab that if not just output "-"
-  if(score %in% names(cindex_compldata)){
-    
-    ci <- cindex_compldata[[score]]
-    ci <- paste0(sprintf("%.3f",ci$cindex), " (", sprintf("%.3f",ci$lower), ", ", sprintf("%.3f",ci$upper), ")")
-    
-  } else {
-    
-    ci <- "-"
+  scores_and_rf_data$output$model1_res <- qlogis(scores_and_rf_data$output[[score]]/100) - scores_and_rf_data$output$model1_pred
+
+  # Calculate AUC
+  auc <- auc(roc(scores_and_rf_data$output$cc_status[!is.na(scores_and_rf_data$output[[score]])], scores_and_rf_data$output$model1_res[!is.na(scores_and_rf_data$output[[score]])]))
+  auc_ci <- unname(ci.auc(scores_and_rf_data$output$cc_status[!is.na(scores_and_rf_data$output[[score]])], scores_and_rf_data$output$model1_res[!is.na(scores_and_rf_data$output[[score]])], method = "bootstrap"))
+
+  # Calculate AUC (Cumulus subset)
+  if(score != "cumulus_reading"){
+    auc_cumulus <- auc(roc(scores_and_rf_data$output$cc_status[!is.na(scores_and_rf_data$output[["cumulus_reading"]])], scores_and_rf_data$output$model1_res[!is.na(scores_and_rf_data$output[["cumulus_reading"]])]))
+    auc_cumulus_ci <- unname(ci.auc(scores_and_rf_data$output$cc_status[!is.na(scores_and_rf_data$output[["cumulus_reading"]])], scores_and_rf_data$output$model1_res[!is.na(scores_and_rf_data$output[["cumulus_reading"]])], method = "bootstrap"))
     
   }
   
-  table3[nrow(table3) + 1,] <- c(score, ci, ci_sub)
+  # Creating rows for the table
+  if(score == "cumulus_reading"){
+
+    row <- c("Cumulus", "-", paste0(sprintf("%.2f", auc), " (", sprintf("%.2f",auc_ci[1]), ", ", sprintf("%.2f", auc_ci[3]), ")"))
+
+  } else {
+
+    row <- c(if_else(score == "gail_score", "GAIL", "MIRAI"), paste0(sprintf("%.2f", auc), " (", sprintf("%.2f",auc_ci[1]), ", ", sprintf("%.2f", auc_ci[3]), ")"),
+             paste0(sprintf("%.2f", auc_cumulus), " (", sprintf("%.2f",auc_cumulus_ci[1]), ", ", sprintf("%.2f", auc_cumulus_ci[3]), ")"))
+
+  }
+
+  table3[nrow(table3)+1,] <- row
+  
   
 }
 
-# Table formatting
 table3_gt <- table3 |>
-  filter(risk_score != "iCARE_Lit_risk_5") |>
-  mutate(risk_score = factor(risk_score, levels = c("gail_score", "mirai_score_5y", "cumulus_reading"), labels = c("GAIL", "Mirai", "Cumulus"))) |>
-  arrange(risk_score) |>
-  gt() |>
-  cols_label(
-    risk_score = md("**Risk Score**"),
-    c_index = md("**C-Index (95% CI)**"),
-    c_index_sub = md("**C-Index (95% CI)\n(Subset)**")
-  )
+  gt()
 
-table3_gt
-  
-# Save to docx
+table3
+
 gtsave(table3_gt, "../../results/tables/table_3.docx")
+
 
 ```
 
+
 ### Table 4
-
-Hazard ratios for univariable and multivariable cox regression
-
 ```{r}
 
-# Create study.data
-study.data <- scores_and_rf_data$output |>
-  mutate(cumulus_eligible = !is.na(cumulus_reading))
+model <- list()
+or_estimations <- scores_and_rf_data$output
+
+for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
+
+  # Fit model calculating score using matching variables
+  model[[score]] <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.ethnicity + match.year.entry + match.cancer.free.time")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$cc_status == 0,])
+  
+  or_estimations[[paste0(score, "_res")]] <- predict(model[[score]], or_estimations)
+  or_estimations[[paste0(score, "_res")]] <- qlogis(or_estimations[[score]]/100) - or_estimations[[paste0(score, "_res")]]
+  
+  or_estimations[[paste0(score, "_res")]] <- or_estimations[[paste0(score, "_res")]]/sd(or_estimations[[paste0(score, "_res")]], na.rm = T)
+  
+  or_estimations[[paste0(score, "_res_missing")]] <- is.na(or_estimations[[paste0(score, "_res")]])
+  or_estimations[[paste0(score, "_res")]][is.na(or_estimations[[paste0(score, "_res")]])] <- 0
+  
+  
+}
 
 # Loop through combinations of the risk scores
 all_risk_scores <- c("gail_score", "mirai_score_5y", "cumulus_reading")
-risk_score_combinations <- lapply(1:length(all_risk_scores), function(m) combn(all_risk_scores, m, simplify = FALSE))
+risk_score_combinations <- lapply(2:length(all_risk_scores), function(m) combn(all_risk_scores, m, simplify = FALSE))
 risk_score_combinations <- unlist(risk_score_combinations, recursive = FALSE)
 
-# study.data <- study.data |>
-#     mutate(gail_score_cat = cut(gail_score, breaks = quantile(gail_score, c(0, 0.33, 0.66, 1)))) |>
-#     mutate(mirai_score_5y_cat = cut(mirai_score_5y, breaks = quantile(mirai_score_5y, c(0, 0.33, 0.66, 1)))) |>
-#     mutate(cumulus_reading_cat = cut(cumulus_reading, breaks = quantile(cumulus_reading, c(0, 0.33, 0.66, 1), na.rm = T)))
-# 
-# for(score in all_risk_scores){
-#   
-#   formula <- paste0("Surv(time = pmin(study.exit.age - study.entry.age, time.of.onset), event = case_control_status) ~ ", score, "_cat")
-#   # formula <- paste0("Surv(time = study.entry.age, time2 = pmin(study.exit.age, study.entry.age + time.of.onset), event = case_control_status) ~ ", score, "_cat")
-#   kmfit <- survfit(as.formula(formula), data = study.data)
-#   
-#   plot(kmfit, lty = c("solid", "dashed"), col = c("black", "grey"), xlab = "Survival Time In Years", ylab = "Survival Probabilities")
-#   
-# }
+# Initialise dataframe for results
+table4 <- data.frame(model= character(0), MIRAI = character(0), GAIL = character(0), Cumulus = character(0), AUC = character(0))
 
-  
-# Initialise output table
-table4 <- data.frame(risk.score = all_risk_scores)
-col <- 0
-
+i <- 0
 for(comb in risk_score_combinations){
-
-  # Write formula for cox regression
-  formula <- paste0("Surv(time = pmin(study.exit.age - study.entry.age, time.of.onset), event = case_control_status) ~ ", paste0(paste0(comb), collapse = " + "))
-
-  # # Write formula for cox regression
-  # formula <- paste0("Surv(time = study.entry.age, time2 = pmin(study.exit.age, study.entry.age + time.of.onset), event = case_control_status) ~ ", paste0(paste0(comb), collapse = " + "))
   
-  # If formula contains density, add eliglble tag
-  if("cumulus_reading" %in% comb){
-    formula <- paste0(formula, "+ cumulus_eligible")
-  }
+  i <- i + 1
   
-  # Define data to fit cox model on
-  cox.data <- study.data |>
-    mutate(gail_score = gail_score/100) |>
-    mutate(cumulus_reading = cumulus_reading/100) |>
-    mutate(across(all_of(all_risk_scores), function(x){
-      qlogis(x)
-    })) |>
-    mutate(across(all_of(all_risk_scores), function(x){
-      x/sd(x, na.rm = T)
-    })) |>
-    mutate(cumulus_reading = na.replace(cumulus_reading, 0.5))
+  formula_glm <- paste0("cc_status ~ ", paste0(comb, "_res", collapse =  " + "), " + ", paste0(comb, "_res_missing", collapse = " + "))
   
-  cox.model <- coxph(formula = as.formula(formula), data = cox.data)
+  test <- glm(as.formula(formula_glm), data = or_estimations)
   
-  print(comb)
-  
-  cox.data <- cox.data |>
-    mutate(score = cox.model$linear.predictors)
-  
-  ci <- ci_calc(cox.data, risk_scores = "score", N = NA)
-  print(ci)
-  
-  # Add to univariable column if necessary
-  if(length(comb) == 1){
+  # Grab MIRAI coef
+  if("mirai_score_5y" %in% comb){
     
-    hazard_ratio <- summary(cox.model)$conf.int |>
-      as.data.frame() |>
-      filter(row_number() != n() | !"cumulus_reading" %in% comb) |>
-      mutate(risk.score = comb) |>
-      mutate(univ = paste0(sprintf("%.3f", `exp(coef)`), " (", sprintf("%.3f",`lower .95`), ", ", sprintf("%.3f", `upper .95`), ")")) |>
-      pull(univ)
+    coef <- exp(test$coefficients[names(test$coefficients) == "mirai_score_5y_res"])
     
-    if(!"univ" %in% names(table4)){
-      table4$univ <- NA
-    }
+    CI <- unname(exp(confint(test)[rownames(confint(test)) == "mirai_score_5y_res",]))
     
-    table4 <- table4 |>
-      mutate(
-        univ = if_else(risk.score == comb, hazard_ratio, univ)
-      )
+    mirai_or <- paste0(sprintf("%.2f", coef), " (", sprintf("%.2f",CI[1]), ", ", sprintf("%.2f", CI[2]), ")")
     
   } else {
     
-    # Iterate through columns
-    col <- col + 1
-    
-    hazard_ratio <- summary(cox.model)$conf.int |>
-      as.data.frame() |>
-      filter(row_number() != n() | !"cumulus_reading" %in% comb) |>
-      mutate(risk.score = comb) |>
-      mutate(!!sym(paste0("mv_", col)) := paste0(sprintf("%.3f", `exp(coef)`), " (", sprintf("%.3f",`lower .95`), ", ", sprintf("%.3f", `upper .95`), ")")) |>
-      select(risk.score, paste0("mv_", col))
-    
-    table4 <- table4 |>
-      merge(hazard_ratio, by = "risk.score", all.x = T)
+    mirai_or <- "-"
     
   }
+  
+  # Grab GAIL coef
+  if("gail_score" %in% comb){
+    
+    coef <- exp(test$coefficients[names(test$coefficients) == "gail_score_res"])
+    
+    CI <- unname(exp(confint(test)[rownames(confint(test)) == "gail_score_res",]))
+    
+    gail_or <- paste0(sprintf("%.2f", coef), " (", sprintf("%.2f",CI[1]), ", ", sprintf("%.2f", CI[2]), ")")
+    
+  } else {
+    
+    gail_or <- "-"
+    
+  }
+  
+  # Grab Cumulus coef
+  if("cumulus_reading" %in% comb){
+    
+    coef <- exp(test$coefficients[names(test$coefficients) == "cumulus_reading_res"])
+    
+    CI <- unname(exp(confint(test)[rownames(confint(test)) == "cumulus_reading_res",]))
+    
+    cumulus_or <- paste0(sprintf("%.2f", coef), " (", sprintf("%.2f",CI[1]), ", ", sprintf("%.2f", CI[2]), ")")
+    
+  } else {
+    
+    cumulus_or <- "-"
+    
+  }
+    
+  # Grab AUC
+  auc <- auc(roc(or_estimations$cc_status, test$fitted.values))
+  auc.ci <- unname(ci.auc(or_estimations$cc_status, test$fitted.values))
+  
+  auc <- paste0(sprintf("%.2f", auc), " (", sprintf("%.2f",auc.ci[1]), ", ", sprintf("%.2f", auc.ci[3]), ")")
+  
+  # Write row to the dataframe
+  table4[nrow(table4)+1,] <- c(paste0("Model ", i), mirai_or, gail_or, cumulus_or, auc)
   
   
 }
 
-
-# Formatting the table
+# Change to gt
 table4_gt <- table4 |>
-  mutate(
-    
-    risk.score = case_when(
-      risk.score == "gail_score" ~ "GAIL",
-      risk.score == "mirai_score_5y"~ "Mirai",
-      risk.score == "cumulus_reading" ~ "Cumulus"
-    )
-    
-  ) |>
-  mutate(across(everything(), function(x){
-    na.replace(x, "-")
-  })) |>
-  gt() |>
-  tab_spanner(
-    label = md("**HR (95% CI)\n(Univariable)**"),
-    columns = univ
-  ) |>
-  tab_spanner(
-    label = md("**HR (95% CI)\nMultivariable**"),
-    columns = all_of(starts_with("mv_"))
-  )
-  
-table4_gt
+  gt()
 
-# Save to docx
 gtsave(table4_gt, "../../results/tables/table_4.docx")
-```
-
-
-```{r}
-
-
-Y = Surv(addicts$survt, addicts$status == 1)
 
 ```

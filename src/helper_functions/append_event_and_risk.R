@@ -37,17 +37,19 @@ append_event_data <- function(eligible_dicom_uids, dicom_metadata = NULL, set_me
     set_metadata <- read.csv(set_metadata_fn)
   
   # Get fup start dates from mammograms
-  dicom_data <- dicom_metadata |>
+  dicom_data <- set_metadata |>
     filter(SOPInstanceUID %in% eligible_dicom_uids) |>
     #left_join(set_metadata %>% select(SOPInstanceUID, YearOfMammo), by='SOPInstanceUID') |>
     group_by(TCode) |>
     summarise(#YearOfMammo = unique(YearOfMammo),
-              StudyDate_m = as.Date(unique(StudyDate_m), format = "%d/%m/%Y")) |>
+      MammoDate = as.Date(unique(MammoDate), format = "%d/%m/%Y")) |>
     ungroup()
   
   # Create analytical population
   study_data <- dicom_data |>
-    do(create_analytical_dataset(., years = years_fup, cancer = "all_breast", fup_start_date = "StudyDate_m"))
+    do(create_analytical_dataset(., years = years_fup, cancer = "all_breast", fup_start_date = "MammoDate"))
+  
+  # browser()
   
   study_data <- study_data |>
     mutate(
