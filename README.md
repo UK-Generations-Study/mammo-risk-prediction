@@ -47,5 +47,7 @@
 	
 ## Results
 Associations between the Mirai risk score and risk factors can be found [here](results/tables/table_2.docx).
+
 Discriminatory performance of Mirai, Gail, and Cumulus can be found [here](results/tables/table_3.docx).
+
 Ensemble discriminatory performance of Mirai, Gail, and Cumulus can be found [here](results/tables/table_4.docx).
