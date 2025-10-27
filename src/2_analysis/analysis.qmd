@@ -142,90 +142,6 @@ plot_y_vs_all <- function(
   list(plot = NULL, tests = tests)
 }
 
-# Harrels C-index calculation
-ci_calc <- function(data, risk_scores, N = 5000) {
-  c_indices <- list()
-  
-  for(score in risk_scores) {
-    concordance_index <- with(data |> filter(!is.na(!!sym(score))) |> mutate(score = !!sym(score)), Cindex(risk = score, times = time.ci, delta = case_control_status))
-    
-    # Bootstrapping for C-Index
-    # If no N given, simply output the concordance index
-    if(!is.na(N)){
-      
-      ci_sample <- numeric(0)
-      for(i in 1:N){
-        ci_sample[i] <- with(data |> filter(!is.na(!!sym(score))) |> mutate(score = !!sym(score)) |> sample_n(size = n(), replace = T), Cindex(risk = score, times = time.ci, delta = case_control_status))
-      }
-      
-      ci_lower <- unname(quantile(ci_sample, probs = 0.025))
-      ci_upper <- unname(quantile(ci_sample, probs = 0.975))
-      
-      c_indices[[score]] <- data.frame(cindex = concordance_index, lower = ci_lower, upper = ci_upper)
-      
-    } else {
-      
-      c_indices[[score]] <- concordance_index
-      
-    }
-    
-  }
-  
-  return(c_indices)
-}
-
-
-# Five fold cross validation of c index cox regression
-ff_cox_bootstrap <- function(formula, data, N = 5000){
-  
-  
-  base_ci <- five_fold_ci(formula, data)
-  
-  ci_bt <- numeric(0)
-  for(i in 1:N){
-    
-    bootstrapped_data <- data[sample(1:nrow(data), size = nrow(data), replace = T),]
-    ci_bt[i] <- five_fold_ci(formula, data)
-    
-  }
-  
-  return(base_ci)
-  
-}
-
-five_fold_ci <- function(formula, data){
-  
-  set.seed(123)
-  data.folds <- vfold_cv(data, v = 5)
-  
-  # Loop through folds fitting the model and calculating a c index
-  c_indices <- numeric(0)
-  for(i in 1:5){
-    
-    # Fit cox model
-    cox.model <- coxph(formula = as.formula(formula), data = analysis(data.folds$splits[[i]]))
-    
-    # Plot residuals if i = 1
-    if(i == 1){
-      # print(qqnorm(y = cox.model$residuals))
-    }
-    
-    # Fit risk scores on the validation set
-    risk.scores <- predict(cox.model, newdata = assessment(data.folds$splits[[i]]), type = "risk")
-    
-    validation.set <- assessment(data.folds$splits[[i]]) |>
-      mutate(risk.score = risk.scores)
-    
-    c_indices[i] <- ci_calc(data = validation.set, risk_scores = "risk.score", N = NA)
-  
-  }
-  
-  # Average the c index
-  c_index <- mean(unlist(c_indices))
-  
-  return(c_index)
-  
-}
 
 ```
 
@@ -257,34 +173,34 @@ cancer.free.time <- scores_and_rf_data$output |>
 ### Create matching variables
 ```{r}
 
+# Creating matching variables that were used in the matching process when matching cases and controls
+# Categories have to be such that if cases are represented in the category - there has to be a control represented
+# Should we make these categories different for cumulus subset or no? Gut check says no but could make categories larger for the whole study pop if so?
 scores_and_rf_data$output <- scores_and_rf_data$output |>
   merge(cancer.free.time, by = "TCode", all.x = T) |>
   merge(year.entry, by = "TCode", all.x = T) |>
   mutate(
     
-    cancer.free.time.mammo = pmin(study.exit.age - study.entry.age, time.of.onset),
-    
-    match.entry.age.mammo = cut(study.entry.age, breaks = seq(10, 110, by = 5)),
-    
+    # Age at entry
     match.entry.age = cut(AgeatEntry, breaks = seq(10, 110, by = 5)),
     match.entry.age = if_else(match.entry.age == "(30,35]", "(35,40]", match.entry.age),
     
+    # Ethnicity
     match.ethnicity = as.factor(if_else(ethnew5 == 1, 1, 0)),
+    
+    # Year of entry
     match.year.entry = case_when(
       Entry <= 2005 ~ "<=2005",
       Entry >= 2008 ~ ">=2008",
       TRUE ~ as.character(Entry)
     ),
     
-    match.year.mammo = as.numeric(Entry) + (study.entry.age - AgeatEntry),
-    
-    # match.cancer.free.time = cut(floor(cancer.free.time), breaks = seq(0, 15, by = 3)),
+    # Cancer free time from entry
     match.cancer.free.time = case_when(
       cancer.free.time < 10 ~ "[0,10)",
       cancer.free.time <13 ~ "[10,13)",
       TRUE ~ "[13,16)"
-    ),
-    match.cancer.free.time.mammo = cut(cancer.free.time.mammo, breaks = seq(0, 12, by = 2))
+    )
     
   )
 
@@ -720,11 +636,14 @@ table3 <- data.frame(score = character(0), AUC = character(0), AUC_2 = character
 for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
 
   # Fit model calculating score using matching variables
+  # Fitting model on controls that have the score measured
   model1 <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.ethnicity + match.year.entry + match.cancer.free.time")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$cc_status == 0,])
   
+  # Predict score on whole dataset
   scores_and_rf_data$output$model1_pred <- NA
   scores_and_rf_data$output$model1_pred[!is.na(scores_and_rf_data$output[[score]])] <- predict(model1, scores_and_rf_data$output[!is.na(scores_and_rf_data$output[[score]]),])
   
+  # Calculate residual
   scores_and_rf_data$output$model1_res <- qlogis(scores_and_rf_data$output[[score]]/100) - scores_and_rf_data$output$model1_pred
 
   # Calculate AUC
@@ -775,13 +694,17 @@ or_estimations <- scores_and_rf_data$output
 for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
 
   # Fit model calculating score using matching variables
+  # Fitting model on controls that have the score measured
   model[[score]] <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.ethnicity + match.year.entry + match.cancer.free.time")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$cc_status == 0,])
   
+  # Predict on whole dataset and calculate residuals
   or_estimations[[paste0(score, "_res")]] <- predict(model[[score]], or_estimations)
   or_estimations[[paste0(score, "_res")]] <- qlogis(or_estimations[[score]]/100) - or_estimations[[paste0(score, "_res")]]
   
+  # Normalise
   or_estimations[[paste0(score, "_res")]] <- or_estimations[[paste0(score, "_res")]]/sd(or_estimations[[paste0(score, "_res")]], na.rm = T)
   
+  # Calculate missingness indicator variable
   or_estimations[[paste0(score, "_res_missing")]] <- is.na(or_estimations[[paste0(score, "_res")]])
   or_estimations[[paste0(score, "_res")]][is.na(or_estimations[[paste0(score, "_res")]])] <- 0
   
@@ -796,13 +719,14 @@ risk_score_combinations <- unlist(risk_score_combinations, recursive = FALSE)
 # Initialise dataframe for results
 table4 <- data.frame(model= character(0), MIRAI = character(0), GAIL = character(0), Cumulus = character(0), AUC = character(0))
 
+# Loop through rows
 i <- 0
 for(comb in risk_score_combinations){
   
   i <- i + 1
   
+  # Write and run glm with cc_status as outcome and residuals + missingness indicators as predictors
   formula_glm <- paste0("cc_status ~ ", paste0(comb, "_res", collapse =  " + "), " + ", paste0(comb, "_res_missing", collapse = " + "))
-  
   test <- glm(as.formula(formula_glm), data = or_estimations)
   
   # Grab MIRAI coef
