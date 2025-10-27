@@ -1,3 +1,6 @@
+library(stringr)
+library(lubridate)
+
 ### DATA PROCESSING ###
 
 # This code contains functions for data processing:
