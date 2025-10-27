@@ -29,7 +29,7 @@ setwd(dirname(rstudioapi::getSourceEditorContext()$path))
 source("../helper_functions/data_processing.R")
 source("../helper_functions/Load_RDS_data.R")
 source("../1_score_generation/GAIL_score_generation.R")
-source("../helper_functions/iCARE_validate_and_plot.R")
+# source("../helper_functions/iCARE_validate_and_plot.R")
 source("../helper_functions/append_event_and_risk.R")
 
 # Read in eligible dicoms
@@ -67,6 +67,12 @@ study.data <- study.data |>
     na.action=na.exclude
 )))
 
+
+# MIRAI Expected/GAIL Expected
+study.data |>
+  summarise(expected_gail = sum(gail_score/100), expected_mirai = sum(mirai_score_5y)) |>
+  mutate(e_e = expected_mirai/expected_gail) |>
+  print()
 
 # For each score, calculate CI and AUC (5-year)
 ci_calc <- function(data, risk_scores) {
@@ -106,3 +112,44 @@ cindex_compldata <- ci_calc(study.data, c("gail_score", "mirai_score_5y", "iCARE
 cindex_denssubsetdata <- ci_calc(study.data %>% filter(cumulus_eligible), c("gail_score", "cumulus_reading", "mirai_score_5y", "mirai_score_5y_sans_cumulus", "iCARE_Lit_risk_5"))
 table(cumulus_available=study.data$cumulus_eligible)
 prop.table(table(cumulus_available=study.data$cumulus_eligible))
+
+## Table Generation
+
+# Initialise dataframe
+table3 <- data.frame(risk_score = character(0), c_index = character(0), c_index_sub = character(0))
+
+for(score in names(cindex_denssubsetdata)){
+  
+  # Get subset C-index and CI
+  ci_sub <- cindex_denssubsetdata[[score]]
+  ci_sub <- paste0(sprintf("%.3f",ci_sub$cindex), " (", sprintf("%.3f",ci_sub$lower), ", ",sprintf("%.3f",ci_sub$upper), ")")
+  
+  # If it is in complete then grab that if not just output "-"
+  if(score %in% names(cindex_compldata)){
+    
+    ci <- cindex_compldata[[score]]
+    ci <- paste0(sprintf("%.3f",ci$cindex), " (", sprintf("%.3f",ci$lower), ", ", sprintf("%.3f",ci$upper), ")")
+    
+  } else {
+    
+    ci <- "-"
+    
+  }
+  
+  table3[nrow(table3) + 1,] <- c(score, ci, ci_sub)
+  
+}
+
+# Table formatting
+table3_gt <- table3 |>
+  filter(risk_score != "iCARE_Lit_risk_5") |>
+  mutate(risk_score = factor(risk_score, levels = c("gail_score", "mirai_score_5y", "cumulus_reading", "mirai_score_5y_sans_cumulus"), labels = c("GAIL", "Mirai", "Cumulus", "Mirai (adj. Cumulus)"))) |>
+  arrange(risk_score) |>
+  gt() |>
+  cols_label(
+    risk_score = md("**Risk Score**"),
+    c_index = md("**C-Index (95% CI)**"),
+    c_index_sub = md("**C-Index (95% CI)\n(Subset)**")
+  )
+  
+gtsave(table3_gt, "../../results/tables/table_3.docx")
