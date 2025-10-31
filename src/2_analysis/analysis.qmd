@@ -1,12 +1,23 @@
 ---
 title: "Mammography AI Breast Cancer Risk Stratification in a UK Population"
-format: html
+format:
+  html:
+    toc: true
+    toc-float: true
+    toc-depth: 10
+    toc-collapsed: false
+    html-table-processing: none
+    grid:
+      sidebar-width: 300px
+      body-width: 1500px
+      margin-width: 300px
+      gutter-width: 1.5rem
 ---
 
 ## Set-up
 
 ### Packages
-```{r}
+```{r, warning=F, message=F}
 
 library(ggplot2)
 library(dplyr)
@@ -35,7 +46,7 @@ library(rsample)
 ```
 
 ### Set working directory
-```{r}
+```{r,eval=F}
 
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
@@ -46,8 +57,6 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
 # Defining population: Eligible DICOM UIDS
 eligible_dicoms_fn <- "../../../data/eligible_dicomuids_mammodate_strategyB_cumulus.csv"
-
-# Read in data and calculate risk scores
 eligible_dicom_uids <- read.csv(eligible_dicoms_fn)
 
 # Read in MammoSet
@@ -97,29 +106,24 @@ clean_risk_factors <- function(df) {
 }
 
 # Test for significant association
-assoc_tests <- function(df, y, preds, time_adjust = TRUE, multivariable = FALSE) {
-  if(!multivariable) {
-    map_dfr(preds, ~{
-      predictor_name <- .x
-      formula_str <- if (time_adjust) {
-        paste('qlogis(',y,'/100)', "~", predictor_name, "+ time_start_to_mammo")
-      } else {
-        paste('qlogis(',y,'/100)', "~", predictor_name)
-      }
-      
-      lm(as.formula(formula_str), data = df %>% filter(!is.na(!!sym(predictor_name)))) %>%
-        tidy() %>%
-        filter(startsWith(term, predictor_name)) %>%
-        select(statistic = estimate, se = std.error, p.value) %>%
-        mutate(
-          variable = predictor_name,
-          test = "lm",
-          .before = 1
-        )
-    })
-  } else {
+assoc_tests <- function(df, y, preds, time_adjust = TRUE) {
+  map_dfr(preds, ~{
+    predictor_name <- .x
+    formula_str <- if (time_adjust) {
+      paste('qlogis(',y,'/100)', "~", predictor_name, "+ time_start_to_mammo")
+    } else {
+      paste('qlogis(',y,'/100)', "~", predictor_name)
+    }
     
-  }
+    lm(as.formula(formula_str), data = df %>% filter(!is.na(!!sym(predictor_name)))) %>%
+      tidy() %>%
+      filter(startsWith(term, predictor_name)) %>%
+      select(statistic = estimate, se = std.error, p.value) %>%
+      mutate(
+        variable = predictor_name,
+        test = "lm"
+      )
+  })
 }
 
 # Plotting MIRAI vs predictors
@@ -133,10 +137,6 @@ plot_y_vs_all <- function(
     time_adjust = F
 ) {
   df_clean <- clean_risk_factors(df)
-  
-  if ("pregparitycnt" %in% predictors) {
-    predictors[predictors == "pregparitycnt"] <- "pregparity_binary"
-  }
   preds <- intersect(predictors, names(df_clean))
   tests <- assoc_tests(df_clean, y, preds, time_adjust = time_adjust)
   list(plot = NULL, tests = tests)
@@ -148,7 +148,7 @@ plot_y_vs_all <- function(
 ## Analysis
 
 ### Calculate scores and return data
-```{r}
+```{r, warning=F, message=F}
 
 scores_and_rf_data <- eligible_dicom_uids %>%
   append_event_data() %>% append_risk_scores(read.csv(eligible_dicoms_fn), return_data=T)
@@ -208,20 +208,21 @@ scores_and_rf_data$output <- scores_and_rf_data$output |>
 
 ### Figure 1
 Violin plots of risk factors and Mirai
-```{r}
+```{r, warning=F, message=F}
 
 # Calculate level order for the table
 lvl_order <- c(
   # case/control
   "Control", "Case",
   # Age at mammography
-  "< 55 years", "55 - 65 years", "65 - 75 years", "> 75 years",
+  "< 55 years", "55 - 65 years", "65 - 74 years", ">= 75 years",
   # Age at menarche
   "< 11 years", "11 years", "12 years", "13 years", "> 13 years",
   # Age at 1st birth
-  "< 24 years", "24 - 26 years", "26 - 30 years", "> 30 years",
+  "< 24 years", "24 - 26 years", "26 - 29 years", ">= 30 years",
   # Biopsies & relatives
-  "0", "1", "1+"
+  "0", "1", "1+",
+  "Q1", "Q2", "Q3", "Q4"
   # # Race (if you include it)
   # "White", "Non-white"
 )
@@ -251,14 +252,14 @@ study.data <- scores_and_rf_data$output %>%
     Age1st == 98 ~ NA,
     Age1st < 24 ~ '< 24 years',
     Age1st >= 24 & Age1st < 26 ~ '24 - 26 years',
-    Age1st >= 26 & Age1st < 30 ~ '26 - 30 years',
-    Age1st >= 30 ~ '> 30 years'
+    Age1st >= 26 & Age1st < 30 ~ '26 - 29 years',
+    Age1st >= 30 ~ '>= 30 years'
   )),
   AgeCat = case_when(
     T1 < 55 ~ '< 55 years',
     T1 >= 55 & T1 < 65  ~ '55 - 65 years',
-    T1 >= 65 & T1 < 75 ~ '65 - 75 years',
-    T1 >= 75 ~ '> 75 years'
+    T1 >= 65 & T1 < 75 ~ '65 - 74 years',
+    T1 >= 75 ~ '>= 75 years'
     )
   ) %>%
   group_by(cc_status) |>
@@ -273,8 +274,8 @@ var_labels <- c(
   AgeCat = "Age at mammography",
   AgeMenCat = "Age at menarche",
   Age1stCat = "Age at 1st birth",
-  N_Biop              = "Benign biopsies",
-  N_Rels              = "Family history",
+  N_Biop = "Benign biopsies",
+  N_Rels = "Family history",
   CumulusCat = "Breast Density Quartile"
 )
 
@@ -292,8 +293,8 @@ study_recoded <- study.data %>%
                     labels = c("0", "1+")),
     CumulusCat = factor(CumulusCat,
                         levels = c("(1.68,6.88]", "(6.88,12.4]", "(12.4,20.6]", "(20.6,46.9]"),
-                        labels = c("1", "2", "3", "4"))
-  )
+                        labels = c("Q1", "Q2", "Q3", "Q4"))
+  ) %>% ungroup()
 
 # Part A: Case/Control status block
 long_casecontrol <- study_recoded %>%
@@ -318,7 +319,7 @@ violin_long <- bind_rows(long_casecontrol, long_controls) %>%
     variable = factor(variable, levels = c(
       "cc_status","AgeCat","AgeMenCat","Age1stCat","N_Biop","N_Rels","CumulusCat" # ,"Race"
     )),
-    level = fct_relevel(level, lvl_order)                   # <-- key line
+    level = fct_relevel(level, lvl_order)
     # If you want NA to appear last as "Missing", uncomment:
     # level = fct_explicit_na(level, na_level = "Missing") |> fct_relevel("Missing", after = Inf)
   )
@@ -392,6 +393,10 @@ ggsave(
 
 ```
 
+```{r, fig.width=17, fig.height=4}
+p
+```
+
 ### Table 1
 Descriptive table of the study population for the variables included in the GAIL model
 ```{r}
@@ -401,11 +406,11 @@ lvl_order <- c(
   # case/control
   "Control", "Case",
   # Age at mammography
-  "< 55 years", "55 - 65 years", "65 - 75 years", "> 75 years",
+  "< 55 years", "55 - 65 years", "65 - 74 years", ">= 75 years",
   # Age at menarche
   "< 11 years", "11 years", "12 years", "13 years", "> 13 years",
   # Age at 1st birth
-  "< 24 years", "24 - 26 years", "26 - 30 years", "> 30 years",
+  "< 24 years", "24 - 26 years", "26 - 29 years", ">= 30 years",
   # Biopsies & relatives
   "0", "1", "1+",
   # Race (if you include it)
@@ -438,14 +443,14 @@ study.data <- scores_and_rf_data$output %>%
     Age1st == 98 ~ NA,
     Age1st < 24 ~ '< 24 years',
     Age1st >= 24 & Age1st < 26 ~ '24 - 26 years',
-    Age1st >= 26 & Age1st < 30 ~ '26 - 30 years',
-    Age1st >= 30 ~ '> 30 years'
+    Age1st >= 26 & Age1st < 30 ~ '26 - 29 years',
+    Age1st >= 30 ~ '>= 30 years'
   )),
   AgeCat = case_when(
     T1 < 55 ~ '< 55 years',
     T1 >= 55 & T1 < 65  ~ '55 - 65 years',
-    T1 >= 65 & T1 < 75 ~ '65 - 75 years',
-    T1 >= 75 ~ '> 75 years'
+    T1 >= 65 & T1 < 75 ~ '65 - 74 years',
+    T1 >= 75 ~ '>= 75 years'
   ),
   # cumulus_eligible = if_else(cumulus_eligible, "Yes ", "No ")
   ) %>%
@@ -522,6 +527,8 @@ table.one
 
 # DOCX
 gt::gtsave(as_gt(table.one), filename = "../../results/tables/table_1.docx")
+# PNG (for README.md purposes)
+# gt::gtsave(as_gt(table.one), filename = "../../results/tables/table_1.png", zoom = 2, vwidth = 1200)
 
 ```
 
@@ -622,13 +629,13 @@ table2 <- as.data.frame(correlation$tests) |>
 table2
 
 gtsave(table2, "../../results/tables/table_2.docx")
-
+#gtsave(table2, filename = "../../results/tables/table_two.png", zoom = 2, vwidth = 1200)
 
 ```
 
 ### Table 3
 AUC calculated for three risk scores considered both in the whole study population (when possible) and the subset of the study population that contains density measured
-```{r}
+```{r, warning=F, message=F}
 
 # Initialise table 3
 table3 <- data.frame(score = character(0), AUC = character(0), AUC_2 = character(0))
@@ -677,16 +684,18 @@ for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
 table3_gt <- table3 |>
   gt()
 
-table3
-
 gtsave(table3_gt, "../../results/tables/table_3.docx")
 
 
 ```
 
+```{r}
+table3
+```
+
 
 ### Table 4
-```{r}
+```{r, warning=F, message=F}
 
 model <- list()
 or_estimations <- scores_and_rf_data$output
@@ -727,7 +736,7 @@ for(comb in risk_score_combinations){
   
   # Write and run glm with cc_status as outcome and residuals + missingness indicators as predictors
   formula_glm <- paste0("cc_status ~ ", paste0(comb, "_res", collapse =  " + "), " + ", paste0(comb, "_res_missing", collapse = " + "))
-  test <- glm(as.formula(formula_glm), data = or_estimations)
+  test <- glm(as.formula(formula_glm), data = or_estimations, family = 'binomial')
   
   # Grab MIRAI coef
   if("mirai_score_5y" %in% comb){
@@ -791,5 +800,11 @@ table4_gt <- table4 |>
   gt()
 
 gtsave(table4_gt, "../../results/tables/table_4.docx")
+
+```
+
+```{r}
+
+table4_gt
 
 ```
