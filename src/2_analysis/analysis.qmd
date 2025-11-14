@@ -207,7 +207,8 @@ scores_and_rf_data$output <- scores_and_rf_data$output |>
       TRUE ~ "[13,16)"
     )
     
-  )
+  ) |>
+  filter(time.of.onset > 1)
 
 ```
 
@@ -718,14 +719,25 @@ for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
   # Fit model calculating score using matching variables
   # Fitting model on controls that have the score measured
   model1 <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.ethnicity + match.year.entry + match.cancer.free.time + match.mammo.age")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$cc_status == 0,])
-  
+
   # Predict score on whole dataset
   scores_and_rf_data$output$model1_pred <- NA
   scores_and_rf_data$output$model1_pred[!is.na(scores_and_rf_data$output[[score]])] <- predict(model1, scores_and_rf_data$output[!is.na(scores_and_rf_data$output[[score]]),])
-  
+
   # Calculate residual
   scores_and_rf_data$output$model1_res <- qlogis(scores_and_rf_data$output[[score]]/100) - scores_and_rf_data$output$model1_pred
 
+  #   # Fit model calculating score using matching variables
+  # # Fitting model on controls that have the score measured
+  # model1 <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.ethnicity + match.year.entry + match.cancer.free.time + match.mammo.age")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$cc_status == 0,])
+  # 
+  # # Predict score on whole dataset
+  # scores_and_rf_data$output$model1_pred <- NA
+  # scores_and_rf_data$output$model1_pred[!is.na(scores_and_rf_data$output[["cumulus_reading"]])] <- predict(model1, scores_and_rf_data$output[!is.na(scores_and_rf_data$output[["cumulus_reading"]]),])
+  # 
+  # # Calculate residual
+  # scores_and_rf_data$output$model1_res <- qlogis(scores_and_rf_data$output[[score]]/100) - scores_and_rf_data$output$model1_pred
+  
   # Calculate AUC
   auc <- auc(roc(scores_and_rf_data$output$cc_status[!is.na(scores_and_rf_data$output[[score]])], scores_and_rf_data$output$model1_res[!is.na(scores_and_rf_data$output[[score]])]))
   auc_ci <- unname(ci.auc(scores_and_rf_data$output$cc_status[!is.na(scores_and_rf_data$output[[score]])], scores_and_rf_data$output$model1_res[!is.na(scores_and_rf_data$output[[score]])], method = "bootstrap"))
