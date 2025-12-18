@@ -199,6 +199,10 @@ cancer.free.time <- scores_and_rf_data$output |>
 scores_and_rf_data$output <- scores_and_rf_data$output |>
   merge(cancer.free.time, by = "TCode", all.x = T) |>
   merge(year.entry, by = "TCode", all.x = T) |>
+  # Remove non-white participants
+  filter(ethnew5 == 1) |>
+  # Remove cases with no diagnosis
+  filter(is.finite(time.of.onset) | cc_status == 0) |>
   mutate(
     
     # Age at mammogram
@@ -527,39 +531,41 @@ lvl_order <- c(
 
 study.data <- scores_and_rf_data$output %>%
   # mutate(cumulus_eligible = !is.na(cumulus_reading)) |>
-  select('TCode', 'cc_status', 'cumulus_reading', 'mirai_score_5y', 'gail_score',
+  select('TCode', 'cc_status', 'time.of.onset', 'cumulus_reading', 'mirai_score_5y', 'gail_score',
          'study.entry.age', 'bodysizebminow') %>%
   left_join(scores_and_rf_data$gail_data, by='TCode') %>%
-  mutate(Race =case_when(
-    Race == 1 ~ 'White',
-    TRUE ~ 'Non-white'
-  ),
-  N_Rels = case_when(
-    N_Rels == 0 ~ '0',
-    N_Rels >= 1 ~ '1+'
-  ),
-  AgeMenCat = factor(case_when(
-    AgeMen == 99 ~ NA,
-    AgeMen < 11 ~ '< 11 years',
-    AgeMen==11 ~ '11 years',
-    AgeMen==12 ~ '12 years',
-    AgeMen ==13 ~ '13 years',
-    AgeMen >13 ~ '> 13 years'
-  )),
-  Age1stCat = factor(case_when(
-    Age1st == 98 ~ NA,
-    Age1st < 24 ~ '< 24 years',
-    Age1st >= 24 & Age1st < 26 ~ '24 - 26 years',
-    Age1st >= 26 & Age1st < 30 ~ '26 - 29 years',
-    Age1st >= 30 ~ '>= 30 years'
-  )),
-  AgeCat = case_when(
-    T1 < 55 ~ '< 55 years',
-    T1 >= 55 & T1 < 65  ~ '55 - 65 years',
-    T1 >= 65 & T1 < 75 ~ '65 - 74 years',
-    T1 >= 75 ~ '>= 75 years'
-  ),
-  # cumulus_eligible = if_else(cumulus_eligible, "Yes ", "No ")
+  mutate(
+    time.of.onset = if_else(!is.finite(time.of.onset), NA, time.of.onset),
+    Race =case_when(
+      Race == 1 ~ 'White',
+      TRUE ~ 'Non-white'
+    ),
+    N_Rels = case_when(
+      N_Rels == 0 ~ '0',
+      N_Rels >= 1 ~ '1+'
+    ),
+    AgeMenCat = factor(case_when(
+      AgeMen == 99 ~ NA,
+      AgeMen < 11 ~ '< 11 years',
+      AgeMen==11 ~ '11 years',
+      AgeMen==12 ~ '12 years',
+      AgeMen ==13 ~ '13 years',
+      AgeMen >13 ~ '> 13 years'
+    )),
+    Age1stCat = factor(case_when(
+      Age1st == 98 ~ NA,
+      Age1st < 24 ~ '< 24 years',
+      Age1st >= 24 & Age1st < 26 ~ '24 - 26 years',
+      Age1st >= 26 & Age1st < 30 ~ '26 - 29 years',
+      Age1st >= 30 ~ '>= 30 years'
+    )),
+    AgeCat = case_when(
+      T1 < 55 ~ '< 55 years',
+      T1 >= 55 & T1 < 65  ~ '55 - 65 years',
+      T1 >= 65 & T1 < 75 ~ '65 - 74 years',
+      T1 >= 75 ~ '>= 75 years'
+    ),
+    # cumulus_eligible = if_else(cumulus_eligible, "Yes ", "No ")
   ) %>%
   mutate(Race = factor(Race, levels=c('White', 'Non-white')))
 
@@ -595,17 +601,19 @@ table.one <-
     Age1st = ifelse(Age1st != 98, Age1st, NA),
     Race = factor(Race),
     # cumulus_eligible = factor(cumulus_eligible)
-  ) %>% select(cc_status, T1, N_Biop, AgeMen, Age1st, N_Rels, Race, cumulus_reading) |>
+  ) %>% select(cc_status, T1, time.of.onset, N_Biop, AgeMen, Age1st, N_Rels, Race, cumulus_reading) |>
   tbl_summary(
     by = cc_status,   # stratify by CC status
     type = list(
       T1 ~ "continuous",
+      time.of.onset ~ "continuous",
       AgeMen ~ "continuous",
       Age1st ~ "continuous",
       cumulus_reading ~ "continuous"
     ),
     label = list(
       T1 ~ "Age at mammogram (years)",
+      time.of.onset ~ "Time from mammogram to BC diagnosis (years)",
       #HypPlas ~ "History of atypical hyperplasia",
       N_Biop ~ "No. benign breast biopsies",
       AgeMen ~ "Age at menarche (years)",
@@ -752,7 +760,7 @@ for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
 
   # Fit model calculating score using matching variables
   # Fitting model on controls that have the score measured
-  model1 <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.ethnicity + match.year.entry + match.cancer.free.time + match.mammo.age")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$cc_status == 0,])
+  model1 <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$cc_status == 0,])
 
   # Predict score on whole dataset
   scores_and_rf_data$output$model1_pred <- NA
@@ -761,16 +769,16 @@ for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
   # Calculate residual
   scores_and_rf_data$output$model1_res <- qlogis(scores_and_rf_data$output[[score]]/100) - scores_and_rf_data$output$model1_pred
 
-  #   # Fit model calculating score using matching variables
-  # # Fitting model on controls that have the score measured
-  # model1 <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.ethnicity + match.year.entry + match.cancer.free.time + match.mammo.age")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$cc_status == 0,])
-  # 
-  # # Predict score on whole dataset
-  # scores_and_rf_data$output$model1_pred <- NA
-  # scores_and_rf_data$output$model1_pred[!is.na(scores_and_rf_data$output[["cumulus_reading"]])] <- predict(model1, scores_and_rf_data$output[!is.na(scores_and_rf_data$output[["cumulus_reading"]]),])
-  # 
-  # # Calculate residual
-  # scores_and_rf_data$output$model1_res <- qlogis(scores_and_rf_data$output[[score]]/100) - scores_and_rf_data$output$model1_pred
+    # Fit model calculating score using matching variables
+  # Fitting model on controls that have the score measured
+  model1 <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$cc_status == 0,])
+
+  # Predict score on whole dataset
+  scores_and_rf_data$output$model1_pred <- NA
+  scores_and_rf_data$output$model1_pred[!is.na(scores_and_rf_data$output[["cumulus_reading"]])] <- predict(model1, scores_and_rf_data$output[!is.na(scores_and_rf_data$output[["cumulus_reading"]]),])
+
+  # Calculate residual
+  scores_and_rf_data$output$model1_res <- qlogis(scores_and_rf_data$output[[score]]/100) - scores_and_rf_data$output$model1_pred
   
   # Calculate AUC
   auc <- auc(roc(scores_and_rf_data$output$cc_status[!is.na(scores_and_rf_data$output[[score]])], scores_and_rf_data$output$model1_res[!is.na(scores_and_rf_data$output[[score]])]))
@@ -807,7 +815,7 @@ for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
 
   # Fit model calculating score using matching variables
   # Fitting model on controls that have the score measured
-  model[[score]] <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.ethnicity + match.year.entry + match.cancer.free.time + match.mammo.age")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$cc_status == 0,])
+  model[[score]] <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$cc_status == 0,])
   
   # Predict on whole dataset and calculate residuals
   or_estimations[!is.na(or_estimations[[score]]), paste0(score, "_res")] <- predict(model[[score]], or_estimations[!is.na(or_estimations[[score]]),])
