@@ -70,19 +70,22 @@ append_event_data <- function(eligible_dicom_uids, dicom_metadata = NULL, set_me
   return(study_data)
 }
 
-append_risk_scores <- function(data, eligible_dicom_uids, return_data=F) {
+append_risk_scores <- function(data, eligible_dicom_uids, years, return_data=F) {
   if(length(dim(eligible_dicom_uids))) # Handle passing dataframe
     eligible_dicom_uids <- eligible_dicom_uids[,1]
   # Append Mirai scores
-  load_mirai_score <- function(score_csv) {
+  load_mirai_score <- function(score_csv, years) {
     read.csv(score_csv) %>%
-      rename(TCode = patient_exam_id, mirai_score_5y = X5_year_risk) %>% 
+      rename(TCode = patient_exam_id, mirai_score_5y = !!sym(paste0("X", years, "_year_risk"))) %>%
       mutate(TCode = gsub("([A-Za-z\\d]+)(\t0)", '\\1', TCode, perl=T)) %>%
       dplyr::select(TCode, mirai_score_5y)
   }
-  risk_mirai <- load_mirai_score("../../../output/risk_scores/mirai_scores.csv")
+  risk_mirai <- load_mirai_score("../../../output/risk_scores/mirai_scores.csv", years)
   data <- data |>
     merge(risk_mirai, by='TCode')
+  
+  print(summary(data$mirai_score_5y))
+  
   #browser()
     # Append Cumulus scores
   data_cumulus <- read.csv("//rds/data/DGE/DUDGE/Shared/GENERATIONS/CoreData/v20230927/RDSCCMammoCumulus_v1.csv")  
@@ -100,7 +103,7 @@ append_risk_scores <- function(data, eligible_dicom_uids, return_data=F) {
     select(TCode, study.entry.age, study.exit.age) |>
     filter(study.exit.age <= 90 & study.entry.age >= 20)
 
-  gail_output <-  GAIL_score_generation(gail_filter)
+  gail_output <-  GAIL_score_generation(gail_filter, years = years)
   
   data <- data |>
     merge(gail_output$scores, by = "TCode", all.x = T)

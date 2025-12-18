@@ -151,7 +151,7 @@ plot_y_vs_all <- function(
 ```{r, warning=F, message=F}
 
 scores_and_rf_data <- eligible_dicom_uids %>%
-  append_event_data() %>% append_risk_scores(read.csv(eligible_dicoms_fn), return_data=T)
+  append_event_data() %>% append_risk_scores(read.csv(eligible_dicoms_fn), years = 5, return_data=T)
 
 scores_and_rf_data$output <- scores_and_rf_data$output |>
   # Need MIRAI scale to be different
@@ -384,7 +384,7 @@ p <- ggplot(violin_tagged, aes(x = level, y = mirai_score_5y)) +
 ggsave(
   filename = "../../results/plots/figure_1.png",
   plot     = p,
-  width    = 18, height = 6, units = "in", dpi = 300,
+  width    = 18, height = 4, units = "in", dpi = 300,
   bg       = "white"
 )
 
@@ -392,7 +392,7 @@ ggsave(
 ggsave(
   filename = "../../results/plots_svg/figure_1.svg",
   plot     = p,
-  width    = 18, height = 6, units = "in",
+  width    = 18, height = 4, units = "in",
   bg       = "transparent"
 )
 
@@ -432,21 +432,26 @@ for(score in c("mirai_score_5y", "gail_score", "cumulus_reading")){
 }
 
 # Create plot
-plot <- ggplot(data = roc_data) +
+plot <- roc_data |>
+  mutate(
+    Score = case_when(
+      score == "mirai_score_5y" ~ "Mirai",
+      score == "gail_score" ~ "Gail",
+      score == "cumulus_reading" ~ "PD"
+    )
+  ) |>
+  ggplot() +
   geom_segment(x = 0, y = 0, xend = 1, yend = 1) +
-  geom_path(aes(1-specificity, sensitivity, colour = score), linewidth = 1) +
+  geom_path(aes(1-specificity, sensitivity, colour = Score), linewidth = 1) +
   scale_colour_manual(
-    breaks  = c("mirai_score_5y", "gail_score", "cumulus_reading"),
+    breaks  = c("Mirai", "Gail", "PD"),
     values = c("#F9A100", "#FFD602", "#C9DD03")
   ) +
   coord_equal() +
   theme_minimal() +
   labs(
     x = "False Positive Rate",
-    y = "False Negative Rate"
-  ) +
-  theme(
-    legend.position = "none"
+    y = "True Positive Rate"
   )
 
 plot
@@ -455,7 +460,7 @@ plot
 ggsave(
   filename = "../../results/plots/figure_2.png",
   plot     = plot,
-  width    = 3, height = 3, units = "in", dpi = 300,
+  width    = 7, height = 4, units = "in", dpi = 300,
   bg       = "white"
 )
 
@@ -463,7 +468,7 @@ ggsave(
 ggsave(
   filename = "../../results/plots_svg/figure_2.svg",
   plot     = plot,
-  width    = 3, height = 3, units = "in",
+  width    = 7, height = 4, units = "in",
   bg       = "transparent"
 )
 
@@ -600,7 +605,7 @@ table.one <-
 table.one
 
 # DOCX
-gt::gtsave(as_gt(table.one), filename = "../../results/tables/table_1.docx")
+gt::gtsave(gtsummary::as_gt(table.one), filename = "../../results/tables/table_1.docx")
 # PNG (for README.md purposes)
 # gt::gtsave(as_gt(table.one), filename = "../../results/tables/table_1.png", zoom = 2, vwidth = 1200)
 
@@ -613,15 +618,15 @@ Correlations of the MIRAI score with variables included in the GAIL model as wel
 
 # Get data relevant for Table 2
 study.data <- scores_and_rf_data$output %>%
-  select('TCode', 'case_control_status', 'cumulus_reading', 'mirai_score_5y', 'gail_score',
+  select('TCode', 'cc_status', 'cumulus_reading', 'mirai_score_5y', 'gail_score',
          'bodysizebminow') %>%
   left_join(scores_and_rf_data$gail_data, by='TCode')
 
 # Univariable association test
-correlation <- plot_y_vs_all(study.data %>% filter(case_control_status == 0), time_adjust = F)
+correlation <- plot_y_vs_all(study.data %>% filter(cc_status == 0), time_adjust = F)
 
 # Clean risk factors and conduct multivariable test
-study.data.cleaned <- clean_risk_factors(study.data %>% filter(case_control_status == 0))
+study.data.cleaned <- clean_risk_factors(study.data %>% filter(cc_status == 0))
 preds <- c(
   "T1", "N_Biop", "AgeMen", "Age1st", "N_Rels",
   "cumulus_reading"
@@ -806,6 +811,28 @@ for(comb in risk_score_combinations){
   formula_glm <- paste0("cc_status ~ ", paste0(comb, "_res", collapse =  " + "), " + ", paste0(comb, "_res_missing", collapse = " + "))
   test <- glm(as.formula(formula_glm), data = or_estimations, family = 'binomial')
   
+  # # Bootstrap and test for significance against Mirai on its own (if not Mirai and includes Mirai)
+  # set.seed(67)
+  # auc_diff <- numeric(0)
+  # if("mirai_score_5y" %in% comb & length(comb) > 1){
+  #   
+  #   for(j in 1:10000){
+  #     
+  #     or_estimations_sample <- or_estimations[sample(1:nrow(or_estimations), size = nrow(or_estimations), replace = T),]
+  #     auc_mirai <- auc(roc(or_estimations_sample$cc_status, or_estimations_sample$mirai_score_5y))
+  #     
+  #     or_estimations_sample$model_predict <- predict(test, or_estimations_sample)
+  #     auc_model <- auc(roc(or_estimations_sample$cc_status, or_estimations_sample$model_predict))
+  #     
+  #     auc_diff[j] <- auc_model - auc_mirai
+  #     
+  #   }
+  #   
+  #   print(table(auc_diff<0)/length(auc_diff))
+  #   
+  # }
+  
+  
   # Grab MIRAI coef
   if("mirai_score_5y" %in% comb){
     
@@ -953,5 +980,140 @@ ggsave(
   width    = 6, height = 4, units = "in",
   bg       = "transparent"
 )
+
+```
+
+
+### Supplementary Table 1
+```{r}
+
+# Initialise Supplementary Table
+supp_table1 <- data.frame(score = character(0), years = numeric(0), AUC = character(0))
+
+for(years in 1:5){
+  
+  scores_and_rf_data <- eligible_dicom_uids %>%
+  append_event_data() %>% append_risk_scores(read.csv(eligible_dicoms_fn), years = years, return_data=T)
+
+  scores_and_rf_data$output <- scores_and_rf_data$output |>
+    # Need MIRAI scale to be different
+    mutate(mirai_score_5y = 100*mirai_score_5y) |>
+    merge(cc_selection, by = "TCode", all.x = T)
+  
+  # Tabulate request CC status with calculated CC status from time of mammogram
+  with(scores_and_rf_data$output, table(cc_status, is.finite(time.of.onset)))
+  
+  # Get cancer-free time from study entry for those included
+  cancer.free.time <- scores_and_rf_data$output |>
+    select(TCode) |>
+    do(create_analytical_dataset(., cancer = "all_breast")) |>
+    mutate(cancer.free.time = pmin(study.exit.age - study.entry.age, time.of.onset)) |>
+    select(TCode, cancer.free.time)
+  
+  
+  # Creating matching variables that were used in the matching process when matching cases and controls
+  # Categories have to be such that if cases are represented in the category - there has to be a control represented
+  # Should we make these categories different for cumulus subset or no? Gut check says no but could make categories larger for the whole study pop if so?
+  scores_and_rf_data$output <- scores_and_rf_data$output |>
+    merge(cancer.free.time, by = "TCode", all.x = T) |>
+    merge(year.entry, by = "TCode", all.x = T) |>
+    mutate(
+      
+      # Age at mammogram
+      match.mammo.age = cut(study.entry.age, breaks = seq(10, 110, by = 5)),
+      match.mammo.age = if_else(match.mammo.age == "(40,45]", "(45,50]", match.mammo.age),
+  
+      
+      # Age at entry
+      match.entry.age = cut(AgeatEntry, breaks = seq(10, 110, by = 5)),
+      match.entry.age = if_else(match.entry.age == "(30,35]", "(35,40]", match.entry.age),
+      
+      # Ethnicity
+      match.ethnicity = as.factor(if_else(ethnew5 == 1, 1, 0)),
+      
+      # Year of entry
+      match.year.entry = case_when(
+        Entry <= 2005 ~ "<=2005",
+        Entry >= 2008 ~ ">=2008",
+        TRUE ~ as.character(Entry)
+      ),
+      
+      # Cancer free time from entry
+      match.cancer.free.time = case_when(
+        cancer.free.time < 10 ~ "[0,10)",
+        cancer.free.time <13 ~ "[10,13)",
+        TRUE ~ "[13,16)"
+      )
+      
+    ) |>
+    filter(time.of.onset > 1)
+  
+  for(score in c("gail_score", "mirai_score_5y")){
+  
+    # Fit model calculating score using matching variables
+    # Fitting model on controls that have the score measured
+    model1 <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.ethnicity + match.year.entry + match.cancer.free.time + match.mammo.age")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$cc_status == 0,])
+  
+    # Predict score on whole dataset
+    scores_and_rf_data$output$model1_pred <- NA
+    scores_and_rf_data$output$model1_pred[!is.na(scores_and_rf_data$output[[score]])] <- predict(model1, scores_and_rf_data$output[!is.na(scores_and_rf_data$output[[score]]),])
+  
+    # Calculate residual
+    scores_and_rf_data$output$model1_res <- qlogis(scores_and_rf_data$output[[score]]/100) - scores_and_rf_data$output$model1_pred
+    
+    # Calculate AUC
+    auc <- auc(roc(scores_and_rf_data$output$cc_status[!is.na(scores_and_rf_data$output[[score]])], scores_and_rf_data$output$model1_res[!is.na(scores_and_rf_data$output[[score]])]))
+    auc_ci <- unname(ci.auc(scores_and_rf_data$output$cc_status[!is.na(scores_and_rf_data$output[[score]])], scores_and_rf_data$output$model1_res[!is.na(scores_and_rf_data$output[[score]])], method = "bootstrap"))
+    
+    row <- c(case_when(score == "gail_score" ~ "GAIL", score == "mirai_score_5y" ~ "Mirai", TRUE ~ "Cumulus"), years, paste0(sprintf("%.2f", auc), " (", sprintf("%.2f",auc_ci[1]), ", ", sprintf("%.2f", auc_ci[3]), ")"))
+  
+    supp_table1[nrow(supp_table1)+1,] <- row
+    
+    
+  }
+
+}
+
+supp_table1_gt <- supp_table1 |>
+  gt()
+
+supp_table1_gt
+
+gtsave(supp_table1_gt, "../../results/tables/supp_table_1.docx")
+
+
+```
+
+### Supplementary Table 2
+```{r}
+
+supp_table_2 <- scores_and_rf_data$output |>
+  select(cc_status, time.of.onset) |>
+  mutate(time.of.onset = if_else(time.of.onset > 5, ">5 years", "<=5 years")) |>
+  tbl_summary(
+    by = cc_status,   # stratify by CC status
+    label = list(
+      time.of.onset ~ "Time from mammogram to BC diagnosis (years)"
+    ),
+    statistic = list(
+      all_continuous() ~ "{median} ({IQR})",
+      all_categorical() ~ "{n} ({p}%)"
+    ),
+    digits = all_continuous() ~ 1,
+    missing = "ifany"
+  ) |>
+  add_n() |>
+  modify_header(update = list(
+    stat_1 ~ "**Controls, N = {n}**",
+    stat_2 ~ "**Cases, N = {n}**"
+  ), label ~ "**Characteristic**") |>
+  bold_labels()
+  
+# Print in quarto
+supp_table_2
+
+# DOCX
+gt::gtsave(gtsummary::as_gt(supp_table_2), filename = "../../results/tables/supp_table_2.docx")
+# PNG (for README.md purposes)
 
 ```
