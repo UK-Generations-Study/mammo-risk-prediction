@@ -170,6 +170,26 @@ cancer.free.time <- scores_and_rf_data$output |>
 
 ```
 
+```{r}
+# Append Transpara scores
+
+# risk_transpara1 <- read.csv(r'(../../../../transpara/transpara_risk/results.bak/result.csv)') %>% rename('TCode' = 'accession')
+# risk_transpara2 <- read.csv(r'(../../../../transpara/transpara_risk/results/result.csv)') %>% rename('TCode' = 'accession')
+# risk_transpara3 <- read.csv(r'(../../../../transpara/transpara_risk/results.bak/result - Copy.csv)') %>% rename('TCode' = 'accession')
+# risk_transpara4 <- read.csv(r'(../../../../transpara/transpara_risk/results.failed/result.csv)') %>% rename('TCode' = 'accession')
+# 
+# risk_transpara <- bind_rows(risk_transpara1, risk_transpara2, risk_transpara3, risk_transpara4)
+# 
+# scores_and_rf_data$output <- scores_and_rf_data$output %>% left_join(risk_transpara %>% 
+#                                                                        dplyr::select('TCode', 'combined_5Y_absolute_risk', 'volumetric_breast_density_left', 'volumetric_breast_density_right') %>% 
+#                                                                        dplyr::rename(transpara_score_5y = combined_5Y_absolute_risk), by='TCode') %>%
+#   mutate(transpara_score_5y = transpara_score_5y * 100,
+#          transpara_reading = (volumetric_breast_density_left + volumetric_breast_density_right)/2) %>% 
+#   dplyr::select(-c(volumetric_breast_density_left, volumetric_breast_density_right))
+
+
+```
+
 ### Create matching variables
 ```{r}
 
@@ -183,7 +203,10 @@ scores_and_rf_data$output <- scores_and_rf_data$output |>
     
     # Age at mammogram
     match.mammo.age = cut(study.entry.age, breaks = seq(10, 110, by = 5)),
+    # For Cumulus
     match.mammo.age = if_else(match.mammo.age == "(40,45]", "(45,50]", match.mammo.age),
+    # For Transpara (to disable to reproduce original results)
+    # match.mammo.age = if_else(match.mammo.age == "(75,80]", "(80,85]", match.mammo.age),
 
     
     # Age at entry
@@ -349,12 +372,12 @@ p <- ggplot(violin_tagged, aes(x = level, y = mirai_score_5y)) +
     shape = 21, fill = NA, color = "black", alpha = 0.7, size = 1.7
   ) + # Points for < 5 observations
   geom_violin(
-    data = many_data,
+    #data = many_data,
     fill = NA, linewidth = 0.6, trim = TRUE
   ) + # Violins for >= 5 observations
   geom_boxplot(
-    data = many_data,
-    width = 0.15, outlier.shape = NA, linewidth = 0.5
+    #data = many_data,
+    width = 0.15, linewidth = 0.5, outlier.shape = NA, 
   ) +
   facet_grid(
     ~ variable,
@@ -364,10 +387,14 @@ p <- ggplot(violin_tagged, aes(x = level, y = mirai_score_5y)) +
   ) +
   labs(x = NULL, y = "Mirai 5-year score") +
   theme_minimal(base_size = 12) +
-  coord_trans(y = "log10") +   # transform AFTER stats
+  #coord_trans(y = "log10") +   # transform AFTER stats
   scale_y_continuous(
-    breaks = c(0.01, 0.02, 0.05, 0.1, 0.2),
-    labels = scales::label_number(accuracy = 0.001, trim = TRUE)
+    # breaks = c(0.01, 0.02, 0.05, 0.1, 0.2),
+    # labels = scales::label_number(accuracy = 0.001, trim = TRUE),
+    #breaks = c(0.01*100, 0.02*100, 0.05*100, 0.1*100, 0.2*100),
+    breaks = seq(0, 5),
+    #labels = scales::label_number(accuracy = 0.001*100, trim = TRUE),
+    limits = c(0, 5)
   ) +
   theme(
     panel.spacing = unit(1, "lines"),
@@ -406,6 +433,7 @@ p
 ### Figure 2
 ```{r}
 
+#for(score in c("mirai_score_5y", "gail_score", "cumulus_reading", "transpara_score_5y")){
 for(score in c("mirai_score_5y", "gail_score", "cumulus_reading")){
 
   # Fit model calculating score using matching variables
@@ -613,15 +641,15 @@ Correlations of the MIRAI score with variables included in the GAIL model as wel
 
 # Get data relevant for Table 2
 study.data <- scores_and_rf_data$output %>%
-  select('TCode', 'case_control_status', 'cumulus_reading', 'mirai_score_5y', 'gail_score',
+  select('TCode', 'cc_status', 'cumulus_reading', 'mirai_score_5y', 'gail_score',
          'bodysizebminow') %>%
   left_join(scores_and_rf_data$gail_data, by='TCode')
 
 # Univariable association test
-correlation <- plot_y_vs_all(study.data %>% filter(case_control_status == 0), time_adjust = F)
+correlation <- plot_y_vs_all(study.data %>% filter(cc_status == 0), time_adjust = F)
 
 # Clean risk factors and conduct multivariable test
-study.data.cleaned <- clean_risk_factors(study.data %>% filter(case_control_status == 0))
+study.data.cleaned <- clean_risk_factors(study.data %>% filter(cc_status == 0))
 preds <- c(
   "T1", "N_Biop", "AgeMen", "Age1st", "N_Rels",
   "cumulus_reading"
@@ -714,6 +742,7 @@ AUC calculated for three risk scores considered both in the whole study populati
 # Initialise table 3
 table3 <- data.frame(score = character(0), AUC = character(0))
 
+#for(score in c("transpara_score_5y", "gail_score", "mirai_score_5y", "cumulus_reading", "transpara_reading")){
 for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
 
   # Fit model calculating score using matching variables
@@ -742,7 +771,7 @@ for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
   auc <- auc(roc(scores_and_rf_data$output$cc_status[!is.na(scores_and_rf_data$output[[score]])], scores_and_rf_data$output$model1_res[!is.na(scores_and_rf_data$output[[score]])]))
   auc_ci <- unname(ci.auc(scores_and_rf_data$output$cc_status[!is.na(scores_and_rf_data$output[[score]])], scores_and_rf_data$output$model1_res[!is.na(scores_and_rf_data$output[[score]])], method = "bootstrap"))
   
-  row <- c(case_when(score == "gail_score" ~ "GAIL", score == "mirai_score_5y" ~ "Mirai", TRUE ~ "Cumulus"), paste0(sprintf("%.2f", auc), " (", sprintf("%.2f",auc_ci[1]), ", ", sprintf("%.2f", auc_ci[3]), ")"))
+  row <- c(case_when(score == "gail_score" ~ "GAIL", score == "mirai_score_5y" ~ "Mirai", score == "transpara_score_5y" ~ "Transpara", score == "transpara_reading" ~ "Transpara Density", TRUE ~ "Cumulus"), paste0(sprintf("%.2f", auc), " (", sprintf("%.2f",auc_ci[1]), ", ", sprintf("%.2f", auc_ci[3]), ")"))
 
   table3[nrow(table3)+1,] <- row
   
@@ -768,6 +797,7 @@ table3
 model <- list()
 or_estimations <- scores_and_rf_data$output
 
+#for(score in c("gail_score", "mirai_score_5y", "cumulus_reading", "transpara_score_5y")){
 for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
 
   # Fit model calculating score using matching variables
@@ -775,7 +805,7 @@ for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
   model[[score]] <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.ethnicity + match.year.entry + match.cancer.free.time + match.mammo.age")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$cc_status == 0,])
   
   # Predict on whole dataset and calculate residuals
-  or_estimations[[paste0(score, "_res")]] <- predict(model[[score]], or_estimations)
+  or_estimations[!is.na(or_estimations[[score]]), paste0(score, "_res")] <- predict(model[[score]], or_estimations[!is.na(or_estimations[[score]]),])
   or_estimations[[paste0(score, "_res")]] <- qlogis(or_estimations[[score]]/100) - or_estimations[[paste0(score, "_res")]]
   
   # Normalise
@@ -789,11 +819,13 @@ for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
 }
 
 # Loop through combinations of the risk scores
+#all_risk_scores <- c("mirai_score_5y", "gail_score", "cumulus_reading", "transpara_score_5y")
 all_risk_scores <- c("mirai_score_5y", "gail_score", "cumulus_reading")
 risk_score_combinations <- lapply(1:length(all_risk_scores), function(m) combn(all_risk_scores, m, simplify = FALSE))
 risk_score_combinations <- unlist(risk_score_combinations, recursive = FALSE)
 
 # Initialise dataframe for results
+#table4 <- data.frame(model= character(0), MIRAI = character(0), Transpara = character(0), GAIL = character(0), Cumulus = character(0), AUC = character(0))
 table4 <- data.frame(model= character(0), MIRAI = character(0), GAIL = character(0), Cumulus = character(0), AUC = character(0))
 
 # Loop through rows
@@ -818,6 +850,21 @@ for(comb in risk_score_combinations){
   } else {
     
     mirai_or <- "-"
+    
+  }
+  
+  # Grab Transpara coef
+  if("transpara_score_5y" %in% comb){
+    
+    coef <- exp(test$coefficients[names(test$coefficients) == "transpara_score_5y_res"])
+    
+    CI <- unname(exp(confint(test)[rownames(confint(test)) == "transpara_score_5y_res",]))
+    
+    transpara_or <- paste0(sprintf("%.2f", coef), " (", sprintf("%.2f",CI[1]), ", ", sprintf("%.2f", CI[2]), ")")
+    
+  } else {
+    
+    transpara_or <- "-"
     
   }
   
@@ -852,16 +899,59 @@ for(comb in risk_score_combinations){
   }
     
   # Grab AUC
-  auc <- auc(roc(or_estimations$cc_status, test$fitted.values))
+  roc <- roc(or_estimations$cc_status, test$fitted.values)
+  auc <- auc(roc)
   auc.ci <- unname(ci.auc(or_estimations$cc_status, test$fitted.values))
   
   auc <- paste0(sprintf("%.2f", auc), " (", sprintf("%.2f",auc.ci[1]), ", ", sprintf("%.2f", auc.ci[3]), ")")
   
+  # Add to ROC data
+  if(i == 1){
+    roc_data <- data.frame(sensitivity = roc$sensitivities, specificity = roc$specificities, score = paste(comb, collapse=' + '))
+  } else {
+    roc_data <- bind_rows(roc_data, data.frame(sensitivity = roc$sensitivities, specificity = roc$specificities, score = paste(comb, collapse=' + ')))
+  }
+  
   # Write row to the dataframe
-  table4[nrow(table4)+1,] <- c(paste0("Model ", i), mirai_or, gail_or, cumulus_or, auc)
+  table4[nrow(table4)+1,] <- c(paste0("Model ", i), mirai_or, transpara_or, gail_or, cumulus_or, auc)
   
   
 }
+
+plot <- ggplot(data = roc_data) +
+  geom_segment(x = 0, y = 0, xend = 1, yend = 1) +
+  geom_path(aes(1-specificity, sensitivity, colour = score), linewidth = 1) +
+  #scale_colour_manual(
+  #  breaks  = c("mirai_score_5y", "gail_score", "cumulus_reading"),
+  #  values = c("#F9A100", "#FFD602", "#C9DD03")
+  #) +
+  coord_equal() +
+  theme_minimal() +
+  labs(
+    x = "False Positive Rate",
+    y = "False Negative Rate"
+  ) +
+  theme(
+     legend.position = "none"
+  )
+
+plot
+
+# PNG
+ggsave(
+  filename = "../../results/plots/figure_2.png",
+  plot     = plot,
+  width    = 3, height = 3, units = "in", dpi = 300,
+  bg       = "white"
+)
+
+# SVG
+ggsave(
+  filename = "../../results/plots_svg/figure_2.svg",
+  plot     = plot,
+  width    = 3, height = 3, units = "in",
+  bg       = "transparent"
+)
 
 # Change to gt
 table4_gt <- table4 |>
