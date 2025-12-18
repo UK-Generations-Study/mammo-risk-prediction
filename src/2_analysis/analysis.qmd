@@ -1215,3 +1215,69 @@ gt::gtsave(gtsummary::as_gt(supp_table_2), filename = "../../results/tables/supp
 # PNG (for README.md purposes)
 
 ```
+
+## Debugging
+
+### Full vs Subset
+
+```{r}
+
+# Calculate Mirai residuals
+model1 <- lm(as.formula(paste0("qlogis(mirai_score_5y/100) ~ match.entry.age + match.ethnicity + match.year.entry + match.cancer.free.time + match.mammo.age")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output$mirai_score_5y) & scores_and_rf_data$output$cc_status == 0,])
+scores_and_rf_data$output$model1_pred <- NA
+scores_and_rf_data$output$model1_pred[!is.na(scores_and_rf_data$output$mirai_score_5y)] <- predict(model1, scores_and_rf_data$output[!is.na(scores_and_rf_data$output$mirai_score_5y),])
+scores_and_rf_data$output$mirai_residuals <- qlogis(scores_and_rf_data$output$mirai_score_5y/100) - scores_and_rf_data$output$model1_pred
+
+# Calculate Gail residuals
+model1 <- lm(as.formula(paste0("qlogis(gail_score/100) ~ match.entry.age + match.ethnicity + match.year.entry + match.cancer.free.time + match.mammo.age")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output$gail_score) & scores_and_rf_data$output$cc_status == 0,])
+scores_and_rf_data$output$model1_pred <- NA
+scores_and_rf_data$output$model1_pred[!is.na(scores_and_rf_data$output$gail_score)] <- predict(model1, scores_and_rf_data$output[!is.na(scores_and_rf_data$output$gail_score),])
+scores_and_rf_data$output$gail_residuals <- qlogis(scores_and_rf_data$output$gail_score/100) - scores_and_rf_data$output$model1_pred
+
+# Earlier?
+scores_and_rf_data$output$year.mammo = (as.numeric(scores_and_rf_data$output$Entry) + scores_and_rf_data$output$study.entry.age - scores_and_rf_data$output$AgeatEntry)
+summary(glm(!is.na(cumulus_reading) ~ year.mammo, data = scores_and_rf_data$output, family='binomial')) # Yes
+
+# Time from mammo -> diag differential by PD missingness?
+summary(lm(time.of.onset ~ is.na(cumulus_reading), data = scores_and_rf_data$output %>% filter(cc_status == 1, is.finite(time.of.onset))))
+# Not differential.
+
+# Mirai
+summary(lm(mirai_residuals ~ is.na(cumulus_reading)*cc_status, data = scores_and_rf_data$output))
+# Controls have same Mirai scores btw. PD and non-PD subsets.
+# Cases without PD readings (which are more recent) have higher Mirai scores than cases in PD subset.
+
+# Gail
+summary(lm(gail_residuals ~ is.na(cumulus_reading)*cc_status, data = scores_and_rf_data$output))
+# Not seen with Gail.
+
+# Age
+summary(lm(study.entry.age ~ is.na(cumulus_reading)*cc_status, data = scores_and_rf_data$output))
+# Does not differ.
+
+# Manufacturer
+data_mammoimages <- read.csv("//rds/data/DGE/DUDGE/Shared/GENERATIONS/CoreData/v20230927/RDSCCMammoImages_v1.csv")
+data_mammoimages <- data_mammoimages %>% filter(SOPInstanceUID %in% eligible_dicom_uids$SOPInstanceUID) %>%
+  group_by(TCode) %>% dplyr::summarize(manuf = first(Manufacturer), manuf_model = first(ManuModelName))
+scores_and_rf_data$output <- scores_and_rf_data$output %>% left_join(data_mammoimages, by='TCode')
+# manufacturer
+table(Manufacturer=scores_and_rf_data$output$manuf, `CC status`=scores_and_rf_data$output$cc_status, `PD available`=!is.na(scores_and_rf_data$output$cumulus_reading),useNA="always")
+# model
+table(Manufacturer=scores_and_rf_data$output$manuf_model, `CC status`=scores_and_rf_data$output$cc_status, `PD available`=!is.na(scores_and_rf_data$output$cumulus_reading),useNA="always")
+
+summary(glm(factor(manuf_model) ~ is.na(cumulus_reading), data = scores_and_rf_data$output, family='binomial'))
+
+summary(lm(mirai_residuals ~ cc_status*manuf_model, data = scores_and_rf_data$output))
+# Giving Selenia cases higher scores than Lorad cases;
+# Selenia controls also given higher scores than Lorad controls, but not as big of a differential as Selenia cases to Lorad cases.
+
+# Is there more Selenia in non-PD subset? YES.
+# Mirai authors also saw worse performance on Lorad devices, compared to Selenia devices.
+# Lines up.
+
+# Hologic
+
+
+
+
+```
