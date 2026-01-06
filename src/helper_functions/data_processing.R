@@ -239,7 +239,7 @@ get_earliest_cancer <- function(data_cancer = NULL, cancer = "breast"){
     mutate(n_tcode = order(TCode)) %>%
     filter(n_tcode == 1) %>%
     ungroup() |>
-    select(TCode, date_diag, !!sym(paste0(cancer, "_cancer")), diagyear)
+    select(TCode, ICDt, date_diag, !!sym(paste0(cancer, "_cancer")), diagyear)
   
   return(data_cancer)
   

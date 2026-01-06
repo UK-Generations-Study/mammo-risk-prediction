@@ -153,6 +153,9 @@ plot_y_vs_all <- function(
 scores_and_rf_data <- eligible_dicom_uids %>%
   append_event_data() %>% append_risk_scores(read.csv(eligible_dicoms_fn), years = 5, return_data=T)
 
+scores_and_rf_data$output <- scores_and_rf_data$output %>%
+  filter(!(time.of.onset < 1)) # drop non-DCIS/LCIS <1yr dx
+
 scores_and_rf_data$output <- scores_and_rf_data$output |>
   # Need MIRAI scale to be different
   mutate(mirai_score_5y = 100*mirai_score_5y) |>
@@ -167,6 +170,12 @@ cancer.free.time <- scores_and_rf_data$output |>
   do(create_analytical_dataset(., cancer = "all_breast")) |>
   mutate(cancer.free.time = pmin(study.exit.age - study.entry.age, time.of.onset)) |>
   select(TCode, cancer.free.time)
+
+```
+
+```{r}
+
+# HELLO REUBEN :)
 
 ```
 
@@ -1207,7 +1216,25 @@ summary(lm(mirai_residuals ~ cc_status*manuf_model, data = scores_and_rf_data$ou
 # Mirai authors also saw worse performance on Lorad devices, compared to Selenia devices.
 # Lines up.
 
-# Hologic
+# There are two types of Hologic devices: Lorad Selenia, released in 2002, and Selenia Dimensions, released in 2011.
+# Mirai was trained on mammograms from both devices.
+# The supplement of the Mirai paper shows that Mirai has a lower AUC on Lorad Selenia than Selenia Dimensions devices.
+
+# We also find that the discrimination of Mirai is poorer on Lorad Selenia devices (AUC 0.73) than on Selenia Dimensions (AUC 0.80) devices.
+# Formally, we find the Mirai score is associated with mammography device differential by case-control status (p=0.019)
+
+# We found that 74% of mammograms with available PD used a Lorad Selenia device and were on average from an earlier date (June 2012)
+# And only 59% of mammograms with missing PD used a Lorad Selenia device and were on average from a later date (Mar 2014)
+# This aligns with the release schedule of these two Hologic devices.
+
+# In conclusion, we found that screening mammograms with an available PD were older and were more likely to use Lorad Selenia devices, than screening mammograms with a missing PD. We find that the performance of Mirai is worse on Lorad Selenia devices. Given that PD was available on older mammograms, older mammograms more likely to be Lorad Selenia, and the poorer performance of Mirai on Lorad Selenia devices is a likely reason that we see a lower Mirai AUC on the PD subset.
+
+
+
+
+
+# The subset with missing PD readings were from mammograms from a later date (mean: Mar 2014)
+# The subset with with available PD readings were from mammograms from an earlier date (mean: June 2012)
 
 
 
