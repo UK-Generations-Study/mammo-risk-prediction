@@ -173,11 +173,6 @@ cancer.free.time <- scores_and_rf_data$output |>
 
 ```
 
-```{r}
-
-# HELLO REUBEN :)
-
-```
 
 ```{r}
 # Append Transpara scores
@@ -209,7 +204,7 @@ scores_and_rf_data$output <- scores_and_rf_data$output |>
   merge(cancer.free.time, by = "TCode", all.x = T) |>
   merge(year.entry, by = "TCode", all.x = T) |>
   # Remove non-white participants
-  filter(ethnew5 == 1) |>
+  # filter(ethnew5 == 1) |>
   # Remove cases with no diagnosis
   filter(is.finite(time.of.onset) | cc_status == 0) |>
   mutate(
@@ -312,8 +307,8 @@ lvl_order <- c(
   # Age at 1st birth
   "< 24 years", "24 - 26 years", "26 - 29 years", ">= 30 years",
   # Biopsies & relatives
-  "0", "1", "1+",
-  "Q1", "Q2", "Q3", "Q4"
+  "Never", "Ever", "No", "Yes",
+  "(1.68,6.88]", "(6.88,12.4]", "(12.4,20.6]", "(20.6,46.9]"
   # # Race (if you include it)
   # "White", "Non-white"
 )
@@ -378,13 +373,13 @@ study_recoded <- study.data %>%
                                  labels = c("Control", "Case")),
     N_Biop = factor(N_Biop,
                     levels = c(0, 1),
-                    labels = c(0, 1)),
+                    labels = c("Never", "Ever")),
     N_Rels = factor(N_Rels,
                     levels = c("0", "1+"),
-                    labels = c("0", "1+")),
+                    labels = c("No", "Yes")),
     CumulusCat = factor(CumulusCat,
-                        levels = c("(1.68,6.92]", "(6.92,12.6]", "(12.6,20.7]", "(20.7,46.9]"),
-                        labels = c("Q1", "Q2", "Q3", "Q4"))
+                        levels = c("(1.68,6.88]", "(6.88,12.4]", "(12.4,20.6]", "(20.6,46.9]"),
+                        labels = c("(1.68,6.88]", "(6.88,12.4]", "(12.4,20.6]", "(20.6,46.9]"))
   ) %>% ungroup()
 
 # Part A: Case/Control status block
@@ -408,7 +403,7 @@ long_controls <- study_recoded %>%
 violin_long <- bind_rows(long_casecontrol, long_controls) %>%
   mutate(
     variable = factor(variable, levels = c(
-      "cc_status","AgeCat","AgeMenCat","Age1stCat","N_Biop","N_Rels","CumulusCat" # ,"Race"
+      "cc_status","AgeCat","AgeMenCat","Age1stCat","N_Biop","N_Rels","CumulusCat","Race"
     )),
     level = fct_relevel(level, lvl_order)
     # If you want NA to appear last as "Missing", uncomment:
@@ -695,7 +690,7 @@ for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
 
   # Fit model calculating score using matching variables
   # Fitting model on controls that have the score measured
-  model[[score]] <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$cc_status == 0,])
+  model[[score]] <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age + match.ethnicity")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$cc_status == 0,])
   
   # Predict on whole dataset and calculate residuals
   or_estimations[!is.na(or_estimations[[score]]), paste0(score, "_res")] <- predict(model[[score]], or_estimations[!is.na(or_estimations[[score]]),])
@@ -1111,7 +1106,7 @@ for(years in 1:5){
   
     # Fit model calculating score using matching variables
     # Fitting model on controls that have the score measured
-    model1 <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.ethnicity + match.year.entry + match.cancer.free.time + match.mammo.age")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$cc_status == 0,])
+    model1 <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.ethnicity + match.year.entry + match.cancer.free.time + match.mammo.age + match.ethnicity")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$cc_status == 0,])
   
     # Predict score on whole dataset
     scores_and_rf_data$output$model1_pred <- NA

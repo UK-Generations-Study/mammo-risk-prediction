@@ -63,8 +63,8 @@ GAIL_score_generation <- function(df, years){
         ethnew5 == 1 ~ 1, # White
         ethnew5 == 2 ~ 2, # African-American
         ethnew5 == 3 ~ 11, # South Asian
-        ethnew5 == 4 ~ 1, # Unknown/White NOTE: NEED TO CHECK THIS
-        ethnew5 == 9 ~ 1, # Unknown/White NOTE: NEED TO CHECK THIS
+        ethnew5 == 4 ~ 4, # Other 
+        ethnew5 == 9 ~ 4, # Other
         TRUE ~ NA
       ),
       
