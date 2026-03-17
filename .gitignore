@@ -47,3 +47,13 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+
+env/renv/library/
+env/renv/python/
+env/renv/staging/
+env/renv/cache/
+.DS_Store
+.Rproj.user
+.Rhistory
+.RData
+!env/.startup.sh
