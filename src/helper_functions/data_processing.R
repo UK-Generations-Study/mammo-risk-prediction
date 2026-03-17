@@ -38,7 +38,7 @@ create_analytical_dataset <- function(output, years = NA, min_age = NA, max_age 
   }
   
   if(is.null(data_exclusions)){
-    data_exclusions <- read.csv("//rds/data/DGE/DUDGE/Shared/GENERATIONS/RDSExclusions.csv")
+    data_exclusions <- read.csv("//rds/data/DGE/DUDGE/Shared/GENERATIONS/Exclusions/RDSExclusions.csv")
   }
   
   # If fup_start_date variable chosen - check it has been selected in output

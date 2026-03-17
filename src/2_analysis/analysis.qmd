@@ -73,7 +73,7 @@ cc_selection <- data_mammoset |>
   mutate(cc_status = if_else(cc_status == 2, 0, cc_status))
 
 # Read in year of entry to study
-year.entry <- read.csv("//rds/data/DGE/DUDGE/Shared/GENERATIONS/TrueYears/RDSTrueYear.csv") |>
+year.entry <- read.csv("//rds/data/DGE/DUDGE/Shared/GENERATIONS/Event_Years/RDSTrueYear.csv") |>
   select(TCode, Entry)
   
 
@@ -1009,7 +1009,12 @@ gtsave(supp_table1, "../../results/tables/supp_table_1.docx")
 
 supp_table_2 <- scores_and_rf_data$output |>
   select(cc_status, time.of.onset) |>
-  mutate(time.of.onset = if_else(time.of.onset > 5, ">5 years", "<=5 years")) |>
+  # mutate(time.of.onset = if_else(time.of.onset > 5, ">5 years", "<=5 years")) |>
+  mutate(time.of.onset = case_when(
+    time.of.onset <= 5 ~ "<=5 years",
+    is.finite(time.of.onset) ~ ">5 years",
+    TRUE ~ "Control"
+  )) |>
   tbl_summary(
     by = cc_status,   # stratify by CC status
     label = list(
