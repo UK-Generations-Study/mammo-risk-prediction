@@ -560,7 +560,7 @@ lvl_order <- c(
 study.data <- scores_and_rf_data$output %>%
   # mutate(cumulus_eligible = !is.na(cumulus_reading)) |>
   select('TCode', 'cc_status', 'time.of.onset', 'cumulus_reading', 'mirai_score_5y', 'gail_score',
-         'study.entry.age', 'bodysizebminow') %>%
+         'study.entry.age', 'bodysizebminow', 'diagyear') %>%
   left_join(scores_and_rf_data$gail_data, by='TCode') %>%
   mutate(
     time.of.onset = if_else(!is.finite(time.of.onset), NA, time.of.onset),
@@ -571,28 +571,7 @@ study.data <- scores_and_rf_data$output %>%
     N_Rels = case_when(
       N_Rels == 0 ~ '0',
       N_Rels >= 1 ~ '1+'
-    ),
-    AgeMenCat = factor(case_when(
-      AgeMen == 99 ~ NA,
-      AgeMen < 11 ~ '< 11 years',
-      AgeMen==11 ~ '11 years',
-      AgeMen==12 ~ '12 years',
-      AgeMen ==13 ~ '13 years',
-      AgeMen >13 ~ '> 13 years'
-    )),
-    Age1stCat = factor(case_when(
-      Age1st == 98 ~ NA,
-      Age1st < 24 ~ '< 24 years',
-      Age1st >= 24 & Age1st < 26 ~ '24 - 26 years',
-      Age1st >= 26 & Age1st < 30 ~ '26 - 29 years',
-      Age1st >= 30 ~ '>= 30 years'
-    )),
-    AgeCat = case_when(
-      T1 < 55 ~ '< 55 years',
-      T1 >= 55 & T1 < 65  ~ '55 - 65 years',
-      T1 >= 65 & T1 < 75 ~ '65 - 74 years',
-      T1 >= 75 ~ '>= 75 years'
-    ),
+    )
     # cumulus_eligible = if_else(cumulus_eligible, "Yes ", "No ")
   ) %>%
   mutate(Race = factor(Race, levels=c('White', 'Non-white')))
@@ -621,6 +600,7 @@ study.data <- scores_and_rf_data$output %>%
 table.one <-
   study.data %>% 
   mutate(
+    diagage = T1 + time.of.onset,
     cc_status = factor(cc_status, levels=c(0, 1), labels = c('Control', 'Case')),
     HypPlas = factor(HypPlas, levels=c(0, 1), labels = c('No', 'Yes')),
     N_Biop = factor(N_Biop),
@@ -629,11 +609,13 @@ table.one <-
     Age1st = ifelse(Age1st != 98, Age1st, NA),
     Race = factor(Race),
     # cumulus_eligible = factor(cumulus_eligible)
-  ) %>% select(cc_status, T1, time.of.onset, N_Biop, AgeMen, Age1st, N_Rels, Race, mirai_score_5y, gail_score, cumulus_reading) |>
+  ) %>% select(cc_status, diagyear, T1, diagage, time.of.onset, N_Biop, AgeMen, Age1st, N_Rels, Race, mirai_score_5y, gail_score, cumulus_reading) |>
   tbl_summary(
     by = cc_status,   # stratify by CC status
     type = list(
       T1 ~ "continuous",
+      diagyear ~ "continuous",
+      diagage ~ "continuous",
       time.of.onset ~ "continuous",
       AgeMen ~ "continuous",
       Age1st ~ "continuous",
@@ -642,17 +624,19 @@ table.one <-
       cumulus_reading ~ "continuous"
     ),
     label = list(
-      T1 ~ "Age at mammogram (years)",
-      time.of.onset ~ "Time from mammogram to BC diagnosis (years)",
-      #HypPlas ~ "History of atypical hyperplasia",
+      
+      diagyear ~ "Year of BC diagnosis, Median (IQR)",
+      T1 ~ "Age at mammogram (years), Median (IQR)",
+      diagage ~ "Age at BC diagnosis (years), Median (IQR)",
+      time.of.onset ~ "Time from mammogram to BC diagnosis (years), Median (IQR)",
       N_Biop ~ "No. benign breast biopsies",
-      AgeMen ~ "Age at menarche (years)",
-      Age1st ~ "Age at first pregnancy (years)",
+      AgeMen ~ "Age at menarche (years), Median (IQR)",
+      Age1st ~ "Age at first pregnancy (years), Median (IQR)",
       N_Rels ~ "No. 1st-degree relatives with breast cancer",
       Race ~ "Race/ethnicity",
-      mirai_score_5y ~ "Mirai 5-year absolute risk (%)",
-      gail_score ~ "Gail 5-year absolute risk (%)",
-      cumulus_reading ~ "Cumulus breast density (%)"
+      mirai_score_5y ~ "Mirai 5-year absolute risk (%), Median (IQR)",
+      gail_score ~ "Gail 5-year absolute risk (%), Median (IQR)",
+      cumulus_reading ~ "Cumulus breast density (%), Median (IQR)"
     ),
     statistic = list(
       all_continuous() ~ "{median} ({IQR})",
