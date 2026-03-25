@@ -10,10 +10,6 @@
 
   This repository contains the code for analysis of Mirai, an AI mammographic risk score in a case-control subset of the Breast Cancer Now Generations Study (BGS). Associations with breast cancer risk factors are invesitgated, and the discrimination abilities of Mirai are explored and compared alongside and in combination with the Gail clinical risk score and Cumulus percent breast density.
 
-  ## Key Files
-  ### [🔗 src/2_analysis/analysis.html]
-  * Reproduction of manuscript figures and tables
-
   ## Repository Structure
 
 ```text
