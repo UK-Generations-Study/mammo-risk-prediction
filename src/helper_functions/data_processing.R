@@ -1,3 +1,6 @@
+library(stringr)
+library(lubridate)
+
 ### DATA PROCESSING ###
 
 # This code contains functions for data processing:
@@ -35,7 +38,7 @@ create_analytical_dataset <- function(output, years = NA, min_age = NA, max_age 
   }
   
   if(is.null(data_exclusions)){
-    data_exclusions <- read.csv("//rds/data/DGE/DUDGE/Shared/GENERATIONS/RDSExclusions.csv")
+    data_exclusions <- read.csv("//rds/data/DGE/DUDGE/Shared/GENERATIONS/Exclusions/RDSExclusions.csv")
   }
   
   # If fup_start_date variable chosen - check it has been selected in output
@@ -236,7 +239,7 @@ get_earliest_cancer <- function(data_cancer = NULL, cancer = "breast"){
     mutate(n_tcode = order(TCode)) %>%
     filter(n_tcode == 1) %>%
     ungroup() |>
-    select(TCode, date_diag, !!sym(paste0(cancer, "_cancer")), diagyear)
+    select(TCode, ICDt, date_diag, !!sym(paste0(cancer, "_cancer")), diagyear)
   
   return(data_cancer)
   

@@ -109,8 +109,8 @@ read_csv_data <-
            CSV_DATA_FILE_NAME,
            merged_data) {
     merged_data <- merged_data[order(merged_data$order), ]
-    ctypes <- merged_data %>% select(variable_type) %>% pull
-    cdesc <- merged_data %>% select(fielddesc) %>% pull
+    ctypes <- merged_data %>% select(variable_type) %>% dplyr::pull()
+    cdesc <- merged_data %>% select(fielddesc) %>% dplyr::pull()
     csv_data_temp <-
       read_csv(
         paste0("//rds/data/dge/dudge/shared/GENERATIONS/CoreData/",

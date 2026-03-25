@@ -8,7 +8,7 @@
 invasive_cancer_rates <- function(icd_code = "C50"){
   
   # Read in the correct years and format data
-  cancer_reg_data <- suppressMessages(read.csv("//rds/data/DGE/DUDGE/INCANEPI/Generations/Projects/mammo_risk_prediction/data/icare-lit-r-dependencies/Incidence_data_for_England_2024-11-08.csv"))
+  cancer_reg_data <- suppressMessages(read.csv("//rds/data/DGE/DUDGE/INCANEPI/Generations/Projects/mammo_risk_prediction/mirai/data/icare-lit-r-dependencies/Incidence_data_for_England_2024-11-08.csv"))
   
   cancer_reg_data <- cancer_reg_data |>
     filter(ICD10_code == icd_code) |>

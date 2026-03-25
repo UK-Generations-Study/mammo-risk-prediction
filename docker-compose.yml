@@ -1,0 +1,14 @@
+services:
+  rstudio:
+    build: .
+    container_name: mammo-risk-prediction
+    ports:
+      - "127.0.0.1:8787:8787"
+    environment:
+      - DISABLE_AUTH=true
+    volumes:
+      - /mnt/r/INCANEPI/Generations/Projects/mammo_risk_prediction/mirai/repo_dan/src:/home/rstudio/repo/src
+      - /mnt/r/INCANEPI/Generations/Projects/mammo_risk_prediction/mirai/repo_dan/env:/home/rstudio/env
+      - /mnt/r/INCANEPI/Generations/Projects/mammo_risk_prediction/mirai/repo_dan/results:/home/rstudio/repo/results
+      - /mnt/r/INCANEPI/Generations/Projects/mammo_risk_prediction/mirai/data:/home/rstudio/data
+      - /mnt/r/INCANEPI/Generations/Projects/mammo_risk_prediction/mirai/repo_dan/env/renv/cache:/renv_cache

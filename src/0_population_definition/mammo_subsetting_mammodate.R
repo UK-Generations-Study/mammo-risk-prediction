@@ -41,7 +41,8 @@ subset_step2 <- subset_step1 %>% filter(PresentationIntentType == 'FOR PRESENTAT
 with(subset_step2, table(ManuModelName, Manufacturer)) 
 
 # 3. Exclusion of DICOMs for which we have no information on the date the mammogram was taken.
-subset_step3 <- subset_step2 %>% left_join(data_mammo_set %>% dplyr::select(SOPInstanceUID, MammoDate, YearOfMammo), by = 'SOPInstanceUID') %>%
+# Also filtering the mammoset to exclude those collected for USD Study Only
+subset_step3 <- subset_step2 %>% left_join(data_mammo_set %>% filter(Comments != "USD Study Only") |> dplyr::select(SOPInstanceUID, MammoDate, YearOfMammo), by = 'SOPInstanceUID') %>%
   filter(MammoDate != 'NULL')
 
 # 4. "all four standard views" (L CC, L MLO, R CC, and R MLO)
@@ -130,7 +131,8 @@ subset_step6 <- subset_step6 %>%
 
 # 7. ! patients who did not have at least 1 year of screening follow-up (ie., died)
 # study.exit.age - study.entry.age < 1 & fupca_end_reason == 22
-subset_step7a <- subset_step6 %>% filter(!(study.exit.age - study.entry.age < 1 & fupca_end_reason == 22))
+# subset_step7a <- subset_step6 %>% filter(!(study.exit.age - study.entry.age < 1 & fupca_end_reason == 22))
+subset_step7a <- subset_step6 %>% filter(!(study.exit.age - study.entry.age < 1))
 
 # 8. For Strategy B: Dropping mammogram studies taken less than 1 year before an invasive/in situ breast cancer cancer diagnosis.
 subset_step7b <- subset_step7a %>% left_join(get_earliest_cancer(data_cancer = data_cancer, cancer = 'inv_DCIS_LCIS_breast') %>% 
@@ -323,24 +325,31 @@ length(setdiff(subset_step9a$TCode, subset_step9b$TCode)) + length(unique(subset
 # Exporting list of DICOM identifiers
 # setwd(dirname(rstudioapi::getSourceEditorContext()$path))
 # write.csv(subset_step9a[,'SOPInstanceUID',drop=F], r"(../../../data/eligible_dicomuids_mammodate_strategyA.csv)", row.names=F)
-write.csv(subset_step9b[,'SOPInstanceUID',drop=F], r"(../../../data/eligible_dicomuids_mammodate_strategyB.csv)", row.names=F)
-write.csv(subset_step9c[,'SOPInstanceUID',drop=F], r"(../../../data/eligible_dicomuids_mammodate_strategyB_cumulus.csv)", row.names=F)
+# write.csv(subset_step9b[,'SOPInstanceUID',drop=F], r"(../../../data/eligible_dicomuids_mammodate_strategyB.csv)", row.names=F)
+# write.csv(subset_step9c[,'SOPInstanceUID',drop=F], r"(../../../data/eligible_dicomuids_mammodate_strategyB_cumulus.csv)", row.names=F)
 
 
 # # Differences vs. StudyDate selection
 # Saving all new DICOM UIDs relative to studydate selection
-eligible_dicomuids_mammodate_strategyA <- read.csv(r"(../../../data/eligible_dicomuids_mammodate_strategyA.csv)")
-eligible_dicomuids_studydate_strategyA <- read.csv(r"(../../../data/eligible_dicomuids_strategyA.csv)")
-eligible_dicomuids_mammodate_strategyB <- read.csv(r"(../../../data/eligible_dicomuids_mammodate_strategyB.csv)")
-eligible_dicomuids_mammodate_strategyB_cumulus <- read.csv(r"(../../../data/eligible_dicomuids_mammodate_strategyB_cumulus.csv)")
-eligible_dicomuids_studydate_strategyB <- read.csv(r"(../../../data/eligible_dicomuids_strategyB.csv)")
-mammodate_new_dicomsuids_strategyA <- setdiff(eligible_dicomuids_mammodate_strategyA$SOPInstanceUID, eligible_dicomuids_studydate_strategyA$SOPInstanceUID)
-mammodate_new_dicomsuids_strategyB <- setdiff(eligible_dicomuids_mammodate_strategyB$SOPInstanceUID, eligible_dicomuids_studydate_strategyB$SOPInstanceUID)
-mammodate_new_dicomsuids_strategyB_cumulus_base <- setdiff(eligible_dicomuids_mammodate_strategyB_cumulus$SOPInstanceUID, eligible_dicomuids_studydate_strategyB$SOPInstanceUID)
-mammodate_new_dicomsuids_strategyB_cumulus <- setdiff(eligible_dicomuids_mammodate_strategyB_cumulus$SOPInstanceUID, eligible_dicomuids_mammodate_strategyB$SOPInstanceUID)
-write.csv(data.frame(SOPInstanceUID=unique(c(mammodate_new_dicomsuids_strategyB_cumulus_base))),
-          r"(../../../data/eligible_dicomuids_request_aug18.csv)", row.names=F)
+# eligible_dicomuids_mammodate_strategyA <- read.csv(r"(../../../data/eligible_dicomuids_mammodate_strategyA.csv)")
+# eligible_dicomuids_studydate_strategyA <- read.csv(r"(../../../data/eligible_dicomuids_strategyA.csv)")
+# eligible_dicomuids_mammodate_strategyB <- read.csv(r"(../../../data/eligible_dicomuids_mammodate_strategyB.csv)")
+# eligible_dicomuids_mammodate_strategyB_cumulus <- read.csv(r"(../../../data/eligible_dicomuids_mammodate_strategyB_cumulus.csv)")
+# eligible_dicomuids_studydate_strategyB <- read.csv(r"(../../../data/eligible_dicomuids_strategyB.csv)")
+# mammodate_new_dicomsuids_strategyA <- setdiff(eligible_dicomuids_mammodate_strategyA$SOPInstanceUID, eligible_dicomuids_studydate_strategyA$SOPInstanceUID)
+# mammodate_new_dicomsuids_strategyB <- setdiff(eligible_dicomuids_mammodate_strategyB$SOPInstanceUID, eligible_dicomuids_studydate_strategyB$SOPInstanceUID)
+# mammodate_new_dicomsuids_strategyB_cumulus_base <- setdiff(eligible_dicomuids_mammodate_strategyB_cumulus$SOPInstanceUID, eligible_dicomuids_studydate_strategyB$SOPInstanceUID)
+# mammodate_new_dicomsuids_strategyB_cumulus <- setdiff(eligible_dicomuids_mammodate_strategyB_cumulus$SOPInstanceUID, eligible_dicomuids_mammodate_strategyB$SOPInstanceUID)
+# write.csv(data.frame(SOPInstanceUID=unique(c(mammodate_new_dicomsuids_strategyB_cumulus_base))),
+#           r"(../../../data/eligible_dicomuids_request_aug18.csv)", row.names=F)
 
+eligible_dicomuids_mammodate_strategyB_cumulus <- read.csv(r"(../../../data/eligible_dicomuids_mammodate_strategyB_cumulus.csv)")
+
+setdiff(subset_step9c$SOPInstanceUID, eligible_dicomuids_mammodate_strategyB_cumulus$SOPInstanceUID)
+
+write.csv(data.frame(SOPInstanceUID = subset_step9c$SOPInstanceUID), r"(../../../data/eligible_dicomuids_mammodate_strategyB_cumulus_updated.csv)")
+write.csv(data.frame(SOPInstanceUID = setdiff(subset_step9c$SOPInstanceUID, eligible_dicomuids_mammodate_strategyB_cumulus$SOPInstanceUID)),
+          r"(../../../data/eligible_dicomuids_request_oct22.csv)")
 
 # tcodes_new <- data_mammo_set %>% 
 #   filter(SOPInstanceUID %in% (setdiff(eligible_dicomuids_mammodate_strategyB$SOPInstanceUID,

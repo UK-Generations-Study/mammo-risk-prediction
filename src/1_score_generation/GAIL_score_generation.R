@@ -7,7 +7,7 @@
 # Inputs:
 #   df - dataset containing TCodes with the column name "TCode" and age of follow up start with the column name "study.entry.age"
 
-GAIL_score_generation <- function(df){
+GAIL_score_generation <- function(df, years){
   
   # Read in risk factor data
   data_rf <- load_RDS_data("v20230927", "RDSRiskFactors.csv") |>
@@ -27,7 +27,7 @@ GAIL_score_generation <- function(df){
       
       # Age
       T1 = study.entry.age,
-      T2 = study.entry.age + 5,
+      T2 = study.entry.age + years,
       
       # N_Biop
       # NOTE: Unclear whether this data has been updated - will check
@@ -63,8 +63,8 @@ GAIL_score_generation <- function(df){
         ethnew5 == 1 ~ 1, # White
         ethnew5 == 2 ~ 2, # African-American
         ethnew5 == 3 ~ 11, # South Asian
-        ethnew5 == 4 ~ 1, # Unknown/White NOTE: NEED TO CHECK THIS
-        ethnew5 == 9 ~ 1, # Unknown/White NOTE: NEED TO CHECK THIS
+        ethnew5 == 4 ~ 4, # Other 
+        ethnew5 == 9 ~ 4, # Other
         TRUE ~ NA
       ),
       

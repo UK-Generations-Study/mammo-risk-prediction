@@ -14,7 +14,7 @@ library(nftbart)
 library(BCRA) # GAIL SCORE
 
 ## Functions
-source("../helper_functions/create_analytical_dataset.R")
+source("../helper_functions/data_processing.R")
 source("../helper_functions/Load_RDS_data.R")
 source("../1_score_generation/GAIL_score_generation.R")
 source("../1_score_generation/iCARE_Lit_score_generation.R")
@@ -25,7 +25,7 @@ dicom_metadata_fn <- "//rds/data/DGE/DUDGE/Shared/GENERATIONS/CoreData/v20230927
 set_metadata_fn <- "//rds/data/DGE/DUDGE/Shared/GENERATIONS/CoreData/v20230927/RDSCCMammoSet_v1.csv"
 
 # Append incident cancers to passed DICOM UIDs
-append_event_data <- function(eligible_dicom_uids, dicom_metadata = NULL, set_metadata = NULL)  {
+append_event_data <- function(eligible_dicom_uids, dicom_metadata = NULL, set_metadata = NULL, years_fup = NA)  {
   #browser()
   if(length(dim(eligible_dicom_uids))) # Handle passing dataframe
     eligible_dicom_uids <- eligible_dicom_uids[,1]
@@ -37,17 +37,19 @@ append_event_data <- function(eligible_dicom_uids, dicom_metadata = NULL, set_me
     set_metadata <- read.csv(set_metadata_fn)
   
   # Get fup start dates from mammograms
-  dicom_data <- dicom_metadata |>
+  dicom_data <- set_metadata |>
     filter(SOPInstanceUID %in% eligible_dicom_uids) |>
     #left_join(set_metadata %>% select(SOPInstanceUID, YearOfMammo), by='SOPInstanceUID') |>
     group_by(TCode) |>
     summarise(#YearOfMammo = unique(YearOfMammo),
-              StudyDate_m = as.Date(unique(StudyDate_m), format = "%d/%m/%Y")) |>
+      MammoDate = as.Date(unique(MammoDate), format = "%d/%m/%Y")) |>
     ungroup()
   
   # Create analytical population
   study_data <- dicom_data |>
-    do(create_analytical_dataset(., years = NA, cancer = "breast", fup_start_date = "StudyDate_m"))
+    do(create_analytical_dataset(., years = years_fup, cancer = "all_breast", fup_start_date = "MammoDate"))
+  
+  # browser()
   
   study_data <- study_data |>
     mutate(
@@ -68,19 +70,22 @@ append_event_data <- function(eligible_dicom_uids, dicom_metadata = NULL, set_me
   return(study_data)
 }
 
-append_risk_scores <- function(data, eligible_dicom_uids, return_data=F) {
+append_risk_scores <- function(data, eligible_dicom_uids, years, return_data=F) {
   if(length(dim(eligible_dicom_uids))) # Handle passing dataframe
     eligible_dicom_uids <- eligible_dicom_uids[,1]
   # Append Mirai scores
-  load_mirai_score <- function(score_csv) {
+  load_mirai_score <- function(score_csv, years) {
     read.csv(score_csv) %>%
-      rename(TCode = patient_exam_id, mirai_score_5y = X5_year_risk) %>% 
+      rename(TCode = patient_exam_id, mirai_score_5y = !!sym(paste0("X", years, "_year_risk"))) %>%
       mutate(TCode = gsub("([A-Za-z\\d]+)(\t0)", '\\1', TCode, perl=T)) %>%
       dplyr::select(TCode, mirai_score_5y)
   }
-  risk_mirai <- load_mirai_score("../../../output/risk_scores/mirai_scores.csv")
+  risk_mirai <- load_mirai_score("../../../output/risk_scores/mirai_scores.csv", years)
   data <- data |>
     merge(risk_mirai, by='TCode')
+  
+  print(summary(data$mirai_score_5y))
+  
   #browser()
     # Append Cumulus scores
   data_cumulus <- read.csv("//rds/data/DGE/DUDGE/Shared/GENERATIONS/CoreData/v20230927/RDSCCMammoCumulus_v1.csv")  
@@ -98,19 +103,19 @@ append_risk_scores <- function(data, eligible_dicom_uids, return_data=F) {
     select(TCode, study.entry.age, study.exit.age) |>
     filter(study.exit.age <= 90 & study.entry.age >= 20)
 
-  gail_output <-  GAIL_score_generation(gail_filter)
+  gail_output <-  GAIL_score_generation(gail_filter, years = years)
   
   data <- data |>
     merge(gail_output$scores, by = "TCode", all.x = T)
   
   # Append iCARE-Lit scores
-  iCARE_output <- iCARE_Lit_score_generation(data |> select(TCode, study.entry.age))
+  #iCARE_output <- iCARE_Lit_score_generation(data |> select(TCode, study.entry.age))
   
-  data <- data |>
-    merge(iCARE_output$scores, by = "TCode", all.x = T)
+  #data <- data |>
+  #  merge(iCARE_output$scores, by = "TCode", all.x = T)
   
   if(return_data)
-    return(list(output=data, gail_data=gail_output$data, iCARE_Lit_data = iCARE_output$data))
+    return(list(output=data, gail_data=gail_output$data, iCARE_Lit_data = NA))#iCARE_output$data))
   else
     return(data)
 }
