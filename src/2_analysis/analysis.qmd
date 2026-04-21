@@ -99,6 +99,7 @@ clean_risk_factors <- function(df) {
       N_Biop = factor(N_Biop),
       N_Rels = factor(N_Rels),
       AgeMen = na_if(AgeMen, 99),
+      Parous = if_else(Age1st == 98, "Nonparous", "Parous"),
       Age1st = na_if(Age1st, 98),
       Race = factor(Race),
       bodysizebminow = na_if(bodysizebminow, 999)
@@ -131,7 +132,7 @@ plot_y_vs_all <- function(
     df,
     y = "mirai_score_5y",
     predictors = c(
-      "T1", "N_Biop", "AgeMen", "Age1st", "N_Rels",
+      "T1", "N_Biop", "AgeMen", "Age1st", "Parous", "N_Rels",
       "cumulus_reading"
     ),
     time_adjust = F
@@ -252,7 +253,8 @@ Violin plots of risk factors and Mirai
 study.data <- scores_and_rf_data$output %>%
   select('TCode', 'cc_status', 'cumulus_reading', 'mirai_score_5y', 'gail_score',
          'bodysizebminow') %>%
-  left_join(scores_and_rf_data$gail_data, by='TCode')
+  left_join(scores_and_rf_data$gail_data, by='TCode') |>
+  mutate(Parous = if_else(Age1st == 98, "Nonparous", "Parous"))
 
 # Univariable association test
 correlation <- plot_y_vs_all(study.data %>% filter(cc_status == 0), time_adjust = F)
@@ -260,7 +262,7 @@ correlation <- plot_y_vs_all(study.data %>% filter(cc_status == 0), time_adjust 
 # Clean risk factors and conduct multivariable test
 study.data.cleaned <- clean_risk_factors(study.data %>% filter(cc_status == 0))
 preds <- c(
-  "T1", "N_Biop", "AgeMen", "Age1st", "N_Rels",
+  "T1", "N_Biop", "AgeMen", "Age1st", "Parous", "N_Rels",
   "cumulus_reading"
 )
 study.data.cleaned <- study.data.cleaned |>
@@ -291,6 +293,7 @@ correlation_mv <- correlation_mv |>
     variable = case_when(
       variable == "N_Biop1" ~ "N_Biop",
       variable == "N_Rels1" ~ "N_Rels",
+      variable == "ParousParous" ~ "Parous",
       TRUE ~ variable
     )
     
@@ -304,6 +307,8 @@ lvl_order <- c(
   "< 55 years", "55 - 65 years", "65 - 74 years", ">= 75 years",
   # Age at menarche
   "< 11 years", "11 years", "12 years", "13 years", "> 13 years",
+  # Parity
+  "Nonparous", "Parous",
   # Age at 1st birth
   "< 24 years", "24 - 26 years", "26 - 29 years", ">= 30 years",
   # Biopsies & relatives
@@ -346,7 +351,8 @@ study.data <- scores_and_rf_data$output %>%
     T1 >= 55 & T1 < 65  ~ '55 - 65 years',
     T1 >= 65 & T1 < 75 ~ '65 - 74 years',
     T1 >= 75 ~ '>= 75 years'
-    )
+    ),
+  Parous = if_else(Age1st == 98, "Nonparous", "Parous")
   ) %>%
   group_by(cc_status) |>
   mutate(
@@ -354,15 +360,16 @@ study.data <- scores_and_rf_data$output %>%
   ) |>
   mutate(Race = factor(Race, levels=c('White', 'Non-white')))
 
-cat_vars <- c("cc_status", "AgeCat", "AgeMenCat", "Age1stCat", "N_Biop", "N_Rels", "Race","CumulusCat")
+cat_vars <- c("cc_status", "AgeCat", "AgeMenCat", "Age1stCat", "Parous", "N_Biop", "N_Rels", "Race","CumulusCat")
 var_labels <- c(
   cc_status = "Case/Control status",
   AgeCat = "Age at mammography",
   AgeMenCat = "Age at menarche",
   Age1stCat = "Age at 1st birth",
-  N_Biop = "Benign biopsies",
+  Parous = "Parity",
+  N_Biop = "Breast biopsies",
   N_Rels = "Family history",
-  CumulusCat = "Breast Density Quartile"
+  CumulusCat = "Percent breast density, quartiles"
 )
 
 # Recode and split into two parts
@@ -391,9 +398,9 @@ long_casecontrol <- study_recoded %>%
 # Part B: Other variables, restricted to controls
 long_controls <- study_recoded %>%
   filter(cc_status == "Control") %>%
-  select(AgeCat, AgeMenCat, Age1stCat, N_Biop, N_Rels, CumulusCat, mirai_score_5y) %>%
+  select(AgeCat, AgeMenCat, Age1stCat, Parous, N_Biop, N_Rels, CumulusCat, mirai_score_5y) %>%
   pivot_longer(
-    cols = c(AgeCat, AgeMenCat, Age1stCat, N_Biop, N_Rels, CumulusCat),
+    cols = c(AgeCat, AgeMenCat, Age1stCat, Parous, N_Biop, N_Rels, CumulusCat),
     names_to = "variable",
     values_to = "level",
     values_drop_na = TRUE   # <- no NA categories at all
@@ -403,7 +410,7 @@ long_controls <- study_recoded %>%
 violin_long <- bind_rows(long_casecontrol, long_controls) %>%
   mutate(
     variable = factor(variable, levels = c(
-      "cc_status","AgeCat","AgeMenCat","Age1stCat","N_Biop","N_Rels","CumulusCat","Race"
+      "cc_status","AgeCat","AgeMenCat","Age1stCat","Parous","N_Biop","N_Rels","CumulusCat","Race"
     )),
     level = fct_relevel(level, lvl_order)
     # If you want NA to appear last as "Missing", uncomment:
@@ -437,8 +444,8 @@ correlation_mv_plot <- correlation_mv |>
     ),
     
     p_value = case_when(
-      `Pr(>|t|)` < 0.001 ~ "<0.001",
-      TRUE ~ sprintf("%.3f", `Pr(>|t|)`)
+      `Pr(>|t|)` < 0.001 ~ "p<0.001",
+      TRUE ~ paste0("p=", sprintf("%.3f", `Pr(>|t|)`))
     ),
     
     mirai_score_5y = 3,
@@ -515,7 +522,7 @@ p <- ggplot(violin_tagged, aes(x = level, y = mirai_score_5y)) +
 ggsave(
   filename = "../../results/plots/figure_1.png",
   plot     = p,
-  width    = 18, height = 4, units = "in", dpi = 300,
+  width    = 22, height = 4, units = "in", dpi = 300,
   bg       = "white"
 )
 
@@ -523,7 +530,7 @@ ggsave(
 ggsave(
   filename = "../../results/plots_svg/figure_1.svg",
   plot     = p,
-  width    = 18, height = 4, units = "in",
+  width    = 22, height = 4, units = "in",
   bg       = "transparent"
 )
 
