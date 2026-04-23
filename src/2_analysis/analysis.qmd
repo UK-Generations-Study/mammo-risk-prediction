@@ -617,6 +617,12 @@ table.one <-
     Race = factor(Race),
     # cumulus_eligible = factor(cumulus_eligible)
   ) %>% select(cc_status, diagyear, T1, diagage, time.of.onset, N_Biop, AgeMen, Age1st, N_Rels, Race, mirai_score_5y, gail_score, cumulus_reading) |>
+  # Removing information on cancer diagnoses for controls
+  mutate(
+    diagyear = if_else(cc_status == "Control", NA, diagyear),
+    time.of.onset = if_else(cc_status == "Control", NA, time.of.onset),
+    diagage = if_else(cc_status == "Control", NA, diagage),
+  ) |>
   tbl_summary(
     by = cc_status,   # stratify by CC status
     type = list(
@@ -643,7 +649,7 @@ table.one <-
       Race ~ "Race/ethnicity",
       mirai_score_5y ~ "Mirai 5-year absolute risk (%), Median (IQR)",
       gail_score ~ "Gail 5-year absolute risk (%), Median (IQR)",
-      cumulus_reading ~ "Cumulus breast density (%), Median (IQR)"
+      cumulus_reading ~ "Percent breast density (%), Median (IQR)"
     ),
     statistic = list(
       all_continuous() ~ "{median} ({IQR})",
@@ -656,7 +662,14 @@ table.one <-
     stat_1 ~ "**Controls, N = {n}**",
     stat_2 ~ "**Cases, N = {n}**"
   ), label ~ "**Characteristic**") |>
-  bold_labels()
+  bold_labels() |>
+  modify_table_body(
+    ~ .x |>
+      mutate(
+        stat_1 = if_else(stat_1 == "NA (NA)", "-", stat_1)
+      ) |>
+      filter(!(row_type == "missing" & stat_2 == "0"))
+  )
 
 
 # Print in quarto
