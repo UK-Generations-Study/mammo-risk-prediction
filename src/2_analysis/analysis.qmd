@@ -1166,6 +1166,12 @@ scores_and_rf_data$output$model1_pred <- NA
 scores_and_rf_data$output$model1_pred[!is.na(scores_and_rf_data$output$gail_score)] <- predict(model1, scores_and_rf_data$output[!is.na(scores_and_rf_data$output$gail_score),])
 scores_and_rf_data$output$gail_residuals <- qlogis(scores_and_rf_data$output$gail_score/100) - scores_and_rf_data$output$model1_pred
 
+# Calculate PD residuals
+model1 <- lm(as.formula(paste0("qlogis(cumulus_reading/100) ~ match.entry.age + match.ethnicity + match.year.entry + match.cancer.free.time + match.mammo.age")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output$cumulus_reading) & scores_and_rf_data$output$cc_status == 0,])
+scores_and_rf_data$output$model1_pred <- NA
+scores_and_rf_data$output$model1_pred[!is.na(scores_and_rf_data$output$cumulus_reading)] <- predict(model1, scores_and_rf_data$output[!is.na(scores_and_rf_data$output$cumulus_reading),])
+scores_and_rf_data$output$cumulus_residuals <- qlogis(scores_and_rf_data$output$cumulus_reading/100) - scores_and_rf_data$output$model1_pred
+
 # Earlier?
 scores_and_rf_data$output$year.mammo = (as.numeric(scores_and_rf_data$output$Entry) + scores_and_rf_data$output$study.entry.age - scores_and_rf_data$output$AgeatEntry)
 summary(glm(!is.na(cumulus_reading) ~ year.mammo, data = scores_and_rf_data$output, family='binomial')) # Yes
@@ -1234,13 +1240,23 @@ summary(lm(mirai_residuals ~ cc_status*manuf_model, data = scores_and_rf_data$ou
 # In conclusion, we found that screening mammograms with an available PD were older and were more likely to use Lorad Selenia devices, than screening mammograms with a missing PD. We find that the performance of Mirai is worse on Lorad Selenia devices. Given that PD was available on older mammograms, older mammograms more likely to be Lorad Selenia, and the poorer performance of Mirai on Lorad Selenia devices is a likely reason that we see a lower Mirai AUC on the PD subset.
 
 
-
-
-
 # The subset with missing PD readings were from mammograms from a later date (mean: Mar 2014)
 # The subset with with available PD readings were from mammograms from an earlier date (mean: June 2012)
 
 
+# May 7, 2026: Assessing whether PD*Manufacturer is significant w.r.t. CC status
+pd_manu_inter <- lm(cc_status ~ cumulus_residuals*manuf_model, data = scores_and_rf_data$output |> filter(!is.na(cumulus_reading)))
 
+auc <- auc(roc(scores_and_rf_data$output$cc_status[!is.na(scores_and_rf_data$output$cumulus_residuals) & scores_and_rf_data$output$manuf_model == "Lorad Selenia"], scores_and_rf_data$output$cumulus_residuals[!is.na(scores_and_rf_data$output$cumulus_residuals) & scores_and_rf_data$output$manuf_model == "Lorad Selenia"]))
+
+auc_ci <- unname(ci.auc(scores_and_rf_data$output$cc_status[!is.na(scores_and_rf_data$output$cumulus_residuals) & scores_and_rf_data$output$manuf_model == "Lorad Selenia"], scores_and_rf_data$output$cumulus_residuals[!is.na(scores_and_rf_data$output$cumulus_residuals) & scores_and_rf_data$output$manuf_model == "Lorad Selenia"], method = "bootstrap"))
+
+paste0(sprintf("%.2f", auc), " (", sprintf("%.2f",auc_ci[1]), ", ", sprintf("%.2f", auc_ci[3]), ")")
+
+auc <- auc(roc(scores_and_rf_data$output$cc_status[!is.na(scores_and_rf_data$output$cumulus_residuals) & scores_and_rf_data$output$manuf_model == "Selenia Dimensions"], scores_and_rf_data$output$cumulus_residuals[!is.na(scores_and_rf_data$output$cumulus_residuals) & scores_and_rf_data$output$manuf_model == "Selenia Dimensions"]))
+
+auc_ci <- unname(ci.auc(scores_and_rf_data$output$cc_status[!is.na(scores_and_rf_data$output$cumulus_residuals) & scores_and_rf_data$output$manuf_model == "Selenia Dimensions"], scores_and_rf_data$output$cumulus_residuals[!is.na(scores_and_rf_data$output$cumulus_residuals) & scores_and_rf_data$output$manuf_model == "Selenia Dimensions"], method = "bootstrap"))
+
+paste0(sprintf("%.2f", auc), " (", sprintf("%.2f",auc_ci[1]), ", ", sprintf("%.2f", auc_ci[3]), ")")
 
 ```
