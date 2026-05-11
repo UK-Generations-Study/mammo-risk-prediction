@@ -196,6 +196,43 @@ cancer.free.time <- scores_and_rf_data$output |>
 ```
 
 ### Create matching variables
+
+```{r}
+
+#' Function to append matching variables onto supplied data
+#' 
+#' params: data DataFrame with data
+#' 
+#' returns: Dataframe with matching variables appended
+#' 
+#' 
+#' Logic:
+#' Find all categories with at least one control: Categories1
+#' Find all categories with only cases: Categories2
+#' Expand Categories1 to capture all of Categories2
+
+build_matching_variables <- function(data) {
+  # # Create initial cutpoints
+  # match.mammo.age.cuts = 
+  #   with(data |> filter(is.finite(time.of.onset) | cc_status == 0),
+  #        seq(5*round(study.entry.age/5),
+  #            max_bound, by = 5))
+  # > all <- with(temp_cmls, as.integer(unique(cut(study.entry.age, breaks = seq(10, 110, by = 5), ordered_result = T))))
+  # > cases_only <- with(temp_cmls|>filter(cc_status == 1), as.integer(unique(cut(study.entry.age, breaks = seq(10, 110, by = 5), ordered_result = T))))
+  # > while(true)
+  # > setdiff(all, cases_only)
+  # > if setdiff is empty: break
+  # > for each of the elements in the setdiff:
+  # > # Find adjecent category from all
+  # > # If >1 adjacent category, then pick the one with more participants
+  # > # Assign new categories to each observation
+  # > That is our final grouping.
+}
+
+
+```
+
+
 ```{r}
 
 # Creating matching variables that were used in the matching process when matching cases and controls
