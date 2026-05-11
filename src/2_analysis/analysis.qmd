@@ -175,15 +175,99 @@ cancer.free.time <- scores_and_rf_data$output |>
 ```
 
 ### Create matching variables
+
+```{r}
+
+#' Function to append matching variables onto supplied data
+#' 
+#' params: data DataFrame with data
+#' 
+#' returns: Dataframe with matching variables appended
+#' 
+#' 
+#' Logic:
+#' Find all categories with at least one control: Categories1
+#' Find all categories with only cases: Categories2
+#' Expand Categories1 to capture all of Categories2
+
+build_matching_variables <- function(data) {
+  # # Create initial cutpoints
+  # match.mammo.age.cuts = 
+  #   with(data |> filter(is.finite(time.of.onset) | cc_status == 0),
+  #        seq(5*round(study.entry.age/5),
+  #            max_bound, by = 5))
+  # > all <- with(temp_cmls, as.integer(unique(cut(study.entry.age, breaks = seq(10, 110, by = 5), ordered_result = T))))
+  # > cases_only <- with(temp_cmls|>filter(cc_status == 1), as.integer(unique(cut(study.entry.age, breaks = seq(10, 110, by = 5), ordered_result = T))))
+  # > while(true)
+  # > setdiff(all, cases_only)
+  # > if setdiff is empty: break
+  # > for each of the elements in the setdiff:
+  # > # Find adjecent category from all
+  # > # If >1 adjacent category, then pick the one with more participants
+  # > # Assign new categories to each observation
+  # > That is our final grouping.
+}
+
+
+```
+
+```{r}
+
+# # Creating matching variables that were used in the matching process when matching cases and controls
+# # Categories have to be such that if cases are represented in the category - there has to be a control represented
+# scores_and_rf_data$output <- scores_and_rf_data$output |>
+#   merge(cancer.free.time, by = "TCode", all.x = T) |>
+#   merge(year.entry, by = "TCode", all.x = T) |>
+#   filter(time.of.onset > 1) |>
+#   do(build_matching_variables(.))
+
+```
+
 ```{r}
 
 # Creating matching variables that were used in the matching process when matching cases and controls
 # Categories have to be such that if cases are represented in the category - there has to be a control represented
+# Should we make these categories different for cumulus subset or no? Gut check says no but could make categories larger for the whole study pop if so?
 scores_and_rf_data$output <- scores_and_rf_data$output |>
   merge(cancer.free.time, by = "TCode", all.x = T) |>
   merge(year.entry, by = "TCode", all.x = T) |>
-  filter(time.of.onset > 1) |>
-  do(build_matching_variables(.))
+  # Remove non-white participants
+  # filter(ethnew5 == 1) |>
+  # Remove cases with no diagnosis
+  filter(is.finite(time.of.onset) | cc_status == 0) |>
+  mutate(
+    
+    # Age at mammogram
+    match.mammo.age = cut(study.entry.age, breaks = seq(10, 110, by = 5)),
+    # For Cumulus
+    match.mammo.age = if_else(match.mammo.age == "(40,45]", "(45,50]", match.mammo.age),
+    # For Transpara (to disable to reproduce original results)
+    # match.mammo.age = if_else(match.mammo.age == "(75,80]", "(80,85]", match.mammo.age),
+
+    
+    # Age at entry
+    match.entry.age = cut(AgeatEntry, breaks = seq(10, 110, by = 5)),
+    match.entry.age = if_else(match.entry.age == "(30,35]", "(35,40]", match.entry.age),
+    
+    # Ethnicity
+    match.ethnicity = as.factor(if_else(ethnew5 == 1, 1, 0)),
+    
+    # Year of entry
+    match.year.entry = case_when(
+      Entry <= 2005 ~ "<=2005",
+      Entry >= 2008 ~ ">=2008",
+      TRUE ~ as.character(Entry)
+    ),
+    
+    # Cancer free time from entry
+    match.cancer.free.time = case_when(
+      cancer.free.time < 10 ~ "[0,10)",
+      cancer.free.time <13 ~ "[10,13)",
+      TRUE ~ "[13,16)"
+    )
+    
+  ) |>
+  filter(time.of.onset > 1)
 
 ```
 
