@@ -174,27 +174,6 @@ cancer.free.time <- scores_and_rf_data$output |>
 
 ```
 
-
-```{r}
-# Append Transpara scores
-
-# risk_transpara1 <- read.csv(r'(../../../../transpara/transpara_risk/results.bak/result.csv)') %>% rename('TCode' = 'accession')
-# risk_transpara2 <- read.csv(r'(../../../../transpara/transpara_risk/results/result.csv)') %>% rename('TCode' = 'accession')
-# risk_transpara3 <- read.csv(r'(../../../../transpara/transpara_risk/results.bak/result - Copy.csv)') %>% rename('TCode' = 'accession')
-# risk_transpara4 <- read.csv(r'(../../../../transpara/transpara_risk/results.failed/result.csv)') %>% rename('TCode' = 'accession')
-# 
-# risk_transpara <- bind_rows(risk_transpara1, risk_transpara2, risk_transpara3, risk_transpara4)
-# 
-# scores_and_rf_data$output <- scores_and_rf_data$output %>% left_join(risk_transpara %>% 
-#                                                                        dplyr::select('TCode', 'combined_5Y_absolute_risk', 'volumetric_breast_density_left', 'volumetric_breast_density_right') %>% 
-#                                                                        dplyr::rename(transpara_score_5y = combined_5Y_absolute_risk), by='TCode') %>%
-#   mutate(transpara_score_5y = transpara_score_5y * 100,
-#          transpara_reading = (volumetric_breast_density_left + volumetric_breast_density_right)/2) %>% 
-#   dplyr::select(-c(volumetric_breast_density_left, volumetric_breast_density_right))
-
-
-```
-
 ### Create matching variables
 
 ```{r}
@@ -232,6 +211,17 @@ build_matching_variables <- function(data) {
 
 ```
 
+```{r}
+
+# Creating matching variables that were used in the matching process when matching cases and controls
+# Categories have to be such that if cases are represented in the category - there has to be a control represented
+scores_and_rf_data$output <- scores_and_rf_data$output |>
+  merge(cancer.free.time, by = "TCode", all.x = T) |>
+  merge(year.entry, by = "TCode", all.x = T) |>
+  filter(time.of.onset > 1) |>
+  do(build_matching_variables(.))
+
+```
 
 ```{r}
 
@@ -291,7 +281,8 @@ study.data <- scores_and_rf_data$output %>%
   select('TCode', 'cc_status', 'cumulus_reading', 'mirai_score_5y', 'gail_score',
          'bodysizebminow') %>%
   left_join(scores_and_rf_data$gail_data, by='TCode') |>
-  mutate(Parous = if_else(Age1st == 98, "Nonparous", "Parous"))
+  mutate(Parous = if_else(Age1st == 98, "Nonparous", "Parous")) |>
+  filter(time.of.onset > 1)
 
 # Univariable association test
 correlation <- plot_y_vs_all(study.data %>% filter(cc_status == 0), time_adjust = F)
@@ -618,7 +609,8 @@ study.data <- scores_and_rf_data$output %>%
     )
     # cumulus_eligible = if_else(cumulus_eligible, "Yes ", "No ")
   ) %>%
-  mutate(Race = factor(Race, levels=c('White', 'Non-white')))
+  mutate(Race = factor(Race, levels=c('White', 'Non-white'))) |>
+  filter(time.of.onset > 1)
 
 
             
@@ -726,12 +718,17 @@ gt::gtsave(gtsummary::as_gt(table.one), filename = "../../results/tables/table_1
 model <- list()
 or_estimations <- scores_and_rf_data$output
 
-#for(score in c("gail_score", "mirai_score_5y", "cumulus_reading", "transpara_score_5y")){
 for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
+  
+  # Create matching variables
+  temp_data <- scores_and_rf_data$output |>
+    filter(!is.na(!!sym(score))) |>
+    filter(cc_status == 0) |>
+    do(build_matching_variables(.))
 
   # Fit model calculating score using matching variables
   # Fitting model on controls that have the score measured
-  model[[score]] <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age + match.ethnicity")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$cc_status == 0,])
+  model[[score]] <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age + match.ethnicity")), data = temp_data)
   
   # Predict on whole dataset and calculate residuals
   or_estimations[!is.na(or_estimations[[score]]), paste0(score, "_res")] <- predict(model[[score]], or_estimations[!is.na(or_estimations[[score]]),])
@@ -748,13 +745,11 @@ for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
 }
 
 # Loop through combinations of the risk scores
-#all_risk_scores <- c("mirai_score_5y", "gail_score", "cumulus_reading", "transpara_score_5y")
 all_risk_scores <- c("mirai_score_5y", "gail_score", "cumulus_reading")
 risk_score_combinations <- lapply(1:length(all_risk_scores), function(m) combn(all_risk_scores, m, simplify = FALSE))
 risk_score_combinations <- unlist(risk_score_combinations, recursive = FALSE)
 
 # Initialise dataframe for results
-#table2 <- data.frame(model= character(0), MIRAI = character(0), Transpara = character(0), GAIL = character(0), Cumulus = character(0), AUC = character(0))
 table2 <- data.frame(model= character(0), dataset = character(0), MIRAI = character(0), GAIL = character(0), Cumulus = character(0), AUC = character(0))
 
 # Loop through rows
@@ -833,7 +828,6 @@ for(comb in risk_score_combinations){
   }
   
   # Write row to the dataframe
-  # table2[nrow(table2)+1,] <- c(paste0("Model ", i), mirai_or, transpara_or, gail_or, "-", auc)
   table2[nrow(table2)+1,] <- c(paste0("Model ", i), cc_split, mirai_or, gail_or, "-", auc)
     
   }
@@ -922,7 +916,6 @@ for(comb in risk_score_combinations){
   }
   
   # Write row to the dataframe
-  # table2[nrow(table2)+1,] <- c(paste0("Model ", i), mirai_or, transpara_or, gail_or, cumulus_or, auc)
   table2[nrow(table2)+1,] <- c(paste0("Model ", i), cc_split, mirai_or, gail_or, cumulus_or, auc)
   
   
@@ -1203,12 +1196,6 @@ scores_and_rf_data$output$model1_pred <- NA
 scores_and_rf_data$output$model1_pred[!is.na(scores_and_rf_data$output$gail_score)] <- predict(model1, scores_and_rf_data$output[!is.na(scores_and_rf_data$output$gail_score),])
 scores_and_rf_data$output$gail_residuals <- qlogis(scores_and_rf_data$output$gail_score/100) - scores_and_rf_data$output$model1_pred
 
-# Calculate PD residuals
-model1 <- lm(as.formula(paste0("qlogis(cumulus_reading/100) ~ match.entry.age + match.ethnicity + match.year.entry + match.cancer.free.time + match.mammo.age")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output$cumulus_reading) & scores_and_rf_data$output$cc_status == 0,])
-scores_and_rf_data$output$model1_pred <- NA
-scores_and_rf_data$output$model1_pred[!is.na(scores_and_rf_data$output$cumulus_reading)] <- predict(model1, scores_and_rf_data$output[!is.na(scores_and_rf_data$output$cumulus_reading),])
-scores_and_rf_data$output$cumulus_residuals <- qlogis(scores_and_rf_data$output$cumulus_reading/100) - scores_and_rf_data$output$model1_pred
-
 # Earlier?
 scores_and_rf_data$output$year.mammo = (as.numeric(scores_and_rf_data$output$Entry) + scores_and_rf_data$output$study.entry.age - scores_and_rf_data$output$AgeatEntry)
 summary(glm(!is.na(cumulus_reading) ~ year.mammo, data = scores_and_rf_data$output, family='binomial')) # Yes
@@ -1277,23 +1264,13 @@ summary(lm(mirai_residuals ~ cc_status*manuf_model, data = scores_and_rf_data$ou
 # In conclusion, we found that screening mammograms with an available PD were older and were more likely to use Lorad Selenia devices, than screening mammograms with a missing PD. We find that the performance of Mirai is worse on Lorad Selenia devices. Given that PD was available on older mammograms, older mammograms more likely to be Lorad Selenia, and the poorer performance of Mirai on Lorad Selenia devices is a likely reason that we see a lower Mirai AUC on the PD subset.
 
 
+
+
+
 # The subset with missing PD readings were from mammograms from a later date (mean: Mar 2014)
 # The subset with with available PD readings were from mammograms from an earlier date (mean: June 2012)
 
 
-# May 7, 2026: Assessing whether PD*Manufacturer is significant w.r.t. CC status
-pd_manu_inter <- lm(cc_status ~ cumulus_residuals*manuf_model, data = scores_and_rf_data$output |> filter(!is.na(cumulus_reading)))
 
-auc <- auc(roc(scores_and_rf_data$output$cc_status[!is.na(scores_and_rf_data$output$cumulus_residuals) & scores_and_rf_data$output$manuf_model == "Lorad Selenia"], scores_and_rf_data$output$cumulus_residuals[!is.na(scores_and_rf_data$output$cumulus_residuals) & scores_and_rf_data$output$manuf_model == "Lorad Selenia"]))
-
-auc_ci <- unname(ci.auc(scores_and_rf_data$output$cc_status[!is.na(scores_and_rf_data$output$cumulus_residuals) & scores_and_rf_data$output$manuf_model == "Lorad Selenia"], scores_and_rf_data$output$cumulus_residuals[!is.na(scores_and_rf_data$output$cumulus_residuals) & scores_and_rf_data$output$manuf_model == "Lorad Selenia"], method = "bootstrap"))
-
-paste0(sprintf("%.2f", auc), " (", sprintf("%.2f",auc_ci[1]), ", ", sprintf("%.2f", auc_ci[3]), ")")
-
-auc <- auc(roc(scores_and_rf_data$output$cc_status[!is.na(scores_and_rf_data$output$cumulus_residuals) & scores_and_rf_data$output$manuf_model == "Selenia Dimensions"], scores_and_rf_data$output$cumulus_residuals[!is.na(scores_and_rf_data$output$cumulus_residuals) & scores_and_rf_data$output$manuf_model == "Selenia Dimensions"]))
-
-auc_ci <- unname(ci.auc(scores_and_rf_data$output$cc_status[!is.na(scores_and_rf_data$output$cumulus_residuals) & scores_and_rf_data$output$manuf_model == "Selenia Dimensions"], scores_and_rf_data$output$cumulus_residuals[!is.na(scores_and_rf_data$output$cumulus_residuals) & scores_and_rf_data$output$manuf_model == "Selenia Dimensions"], method = "bootstrap"))
-
-paste0(sprintf("%.2f", auc), " (", sprintf("%.2f",auc_ci[1]), ", ", sprintf("%.2f", auc_ci[3]), ")")
 
 ```
