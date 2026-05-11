@@ -213,13 +213,13 @@ build_matching_variables <- function(data) {
 
 ```{r}
 
-# Creating matching variables that were used in the matching process when matching cases and controls
-# Categories have to be such that if cases are represented in the category - there has to be a control represented
-scores_and_rf_data$output <- scores_and_rf_data$output |>
-  merge(cancer.free.time, by = "TCode", all.x = T) |>
-  merge(year.entry, by = "TCode", all.x = T) |>
-  filter(time.of.onset > 1) |>
-  do(build_matching_variables(.))
+# # Creating matching variables that were used in the matching process when matching cases and controls
+# # Categories have to be such that if cases are represented in the category - there has to be a control represented
+# scores_and_rf_data$output <- scores_and_rf_data$output |>
+#   merge(cancer.free.time, by = "TCode", all.x = T) |>
+#   merge(year.entry, by = "TCode", all.x = T) |>
+#   filter(time.of.onset > 1) |>
+#   do(build_matching_variables(.))
 
 ```
 
