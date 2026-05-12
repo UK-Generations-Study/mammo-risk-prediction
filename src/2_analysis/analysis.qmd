@@ -1400,7 +1400,7 @@ for(rpt in 1:r) {
           filter(group == fold) |>
           mutate(fitted.values = predict(test, newdata = cur_data(), type = "response"))
         
-        roc <- suppressMessages(roc(test_data$cc_status, test_data$fitted.values))
+        roc <- suppressMessages(roc(test_data$cc_status, test_data$fitted.values, direction = "<"))
         auc <- auc(roc)
         # auc.ci <- unname(ci.auc(test_data$cc_status, test_data$fitted.values))
         # 
@@ -1487,7 +1487,7 @@ for(rpt in 1:r) {
         filter(!is.na(cumulus_reading)) |>
         mutate(fitted.values = predict(test, newdata = cur_data(), type = "response"))
       
-      roc <- suppressMessages(roc(test_data$cc_status, test_data$fitted.values))
+      roc <- suppressMessages(roc(test_data$cc_status, test_data$fitted.values, direction = "<"))
       auc <- auc(roc)
       # auc.ci <- unname(ci.auc(test_data$cc_status, test_data$fitted.values))
       # 
