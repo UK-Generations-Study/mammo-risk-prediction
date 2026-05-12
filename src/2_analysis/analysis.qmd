@@ -1312,10 +1312,14 @@ table2 <- data.frame(model= character(0), dataset = character(0), MIRAI = numeri
 i <- 0
 
 # Parameters of repeated k-fold CV
-r <- 10 # Number of repeats
+r <- 100 # Number of repeats
 k <- 5 # Number of folds
 
 for(rpt in 1:r) {
+  
+  # Print repeat
+  print(rpt)
+  
   # Set seed
   set.seed(345 + r)
   
@@ -1331,9 +1335,9 @@ for(rpt in 1:r) {
     risk_score_combinations <- unlist(risk_score_combinations, recursive = FALSE)
     
     # Normalize train/test folds separately
-    for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
-      train_sd <- cross_val_data |> filter(group != fold) |> dplyr::pull(paste0(score, "_res")) |> sd(na.rm = TRUE)
-      test_sd <- cross_val_data |> filter(group == fold) |> dplyr::pull(paste0(score, "_res")) |> sd(na.rm = TRUE)
+    for(score in c("gail_score_res", "mirai_score_5y_res", "cumulus_reading_res")){
+      train_sd <- cross_val_data |> filter(group != fold) |> dplyr::pull(paste0(score)) |> sd(na.rm = TRUE)
+      test_sd <- cross_val_data |> filter(group == fold) |> dplyr::pull(paste0(score)) |> sd(na.rm = TRUE)
       cross_val_data <- cross_val_data |>
         mutate(
           !!sym(score) := case_when(
@@ -1362,7 +1366,7 @@ for(rpt in 1:r) {
           
           coef <- exp(test$coefficients[names(test$coefficients) == "mirai_score_5y_res"])
           
-          CI <- unname(exp(confint(test)[rownames(confint(test)) == "mirai_score_5y_res",]))
+          CI <- suppressMessages(unname(exp(confint(test)[rownames(confint(test)) == "mirai_score_5y_res",])))
           
           mirai_or <- coef
           mirai_sd <- (CI[2]-CI[1])/(2*qnorm(0.975))
@@ -1379,7 +1383,7 @@ for(rpt in 1:r) {
           
           coef <- exp(test$coefficients[names(test$coefficients) == "gail_score_res"])
           
-          CI <- unname(exp(confint(test)[rownames(confint(test)) == "gail_score_res",]))
+          CI <- suppressMessages(unname(exp(confint(test)[rownames(confint(test)) == "gail_score_res",])))
           
           gail_or <- coef
           gail_sd <- (CI[2]-CI[1])/(2*qnorm(0.975))
@@ -1396,7 +1400,7 @@ for(rpt in 1:r) {
           filter(group == fold) |>
           mutate(fitted.values = predict(test, newdata = cur_data(), type = "response"))
         
-        roc <- roc(test_data$cc_status, test_data$fitted.values)
+        roc <- suppressMessages(roc(test_data$cc_status, test_data$fitted.values))
         auc <- auc(roc)
         # auc.ci <- unname(ci.auc(test_data$cc_status, test_data$fitted.values))
         # 
@@ -1431,7 +1435,7 @@ for(rpt in 1:r) {
         
         coef <- exp(test$coefficients[names(test$coefficients) == "mirai_score_5y_res"])
         
-        CI <- unname(exp(confint(test)[rownames(confint(test)) == "mirai_score_5y_res",]))
+        CI <- suppressMessages(unname(exp(confint(test)[rownames(confint(test)) == "mirai_score_5y_res",])))
         
         mirai_or <- coef
         mirai_sd <- (CI[2]-CI[1])/(2*qnorm(0.975))
@@ -1448,7 +1452,7 @@ for(rpt in 1:r) {
         
         coef <- exp(test$coefficients[names(test$coefficients) == "gail_score_res"])
         
-        CI <- unname(exp(confint(test)[rownames(confint(test)) == "gail_score_res",]))
+        CI <- suppressMessages(unname(exp(confint(test)[rownames(confint(test)) == "gail_score_res",])))
         
         gail_or <- coef
         gail_sd <- (CI[2]-CI[1])/(2*qnorm(0.975))
@@ -1465,7 +1469,7 @@ for(rpt in 1:r) {
         
         coef <- exp(test$coefficients[names(test$coefficients) == "cumulus_reading_res"])
         
-        CI <- unname(exp(confint(test)[rownames(confint(test)) == "cumulus_reading_res",]))
+        CI <- suppressMessages(unname(exp(confint(test)[rownames(confint(test)) == "cumulus_reading_res",])))
         
         cumulus_or <- coef
         cumulus_sd <- (CI[2]-CI[1])/(2*qnorm(0.975))
@@ -1483,7 +1487,7 @@ for(rpt in 1:r) {
         filter(!is.na(cumulus_reading)) |>
         mutate(fitted.values = predict(test, newdata = cur_data(), type = "response"))
       
-      roc <- roc(test_data$cc_status, test_data$fitted.values)
+      roc <- suppressMessages(roc(test_data$cc_status, test_data$fitted.values))
       auc <- auc(roc)
       # auc.ci <- unname(ci.auc(test_data$cc_status, test_data$fitted.values))
       # 
@@ -1513,65 +1517,29 @@ for(rpt in 1:r) {
 table2_clean <- table2 |>
   group_by(fold, repetition) |>
   mutate(model_spec = row_number()) |>
-  ungroup()
+  ungroup() |>
+  group_by(model_spec) |>
+  mutate(across(c(MIRAI, GAIL, Cumulus, AUC), function(x){
+    
+    if(is.na(x[1])) return("-")
+    
+    x <- as.numeric(x)
+    
+    mean <- mean(x)
+    lci <- quantile(x, 0.025)
+    uci <- quantile(x, 0.975)
+    
+    return(paste0(sprintf("%.2f", mean), 
+                  " (",
+                  sprintf("%.2f", lci),
+                  ", ",
+                  sprintf("%.2f", uci),
+                  ")"))
+    
+  })) |>
+  ungroup() |>
+  select(dataset, MIRAI, GAIL, Cumulus, AUC) |>
+  distinct()
 
-# # Loop through unique models
-# table2_cross_val <- data.frame(model= character(0), dataset = character(0), MIRAI = character(0), GAIL = character(0), Cumulus = character(0), AUC = character(0))
-# 
-# for(i in unique(table2_clean$model_spec)){
-#   
-#   temp_data <- table2_clean |>
-#     filter(model_spec == i)
-#   
-#   model <- temp_data |>
-#     filter(row_number() == 1) |>
-#     pull(model)
-#   
-#   dataset <- temp_data |>
-#     filter(row_number() == 1) |>
-#     pull(dataset)
-#   
-#   for(value in c("MIRAI", "GAIL", "Cumulus", "AUC")){
-#     
-#     if(length(unique(temp_data[[value]])) == 1){
-#       
-#       assign(value, "-")
-#       
-#     } else {
-#       
-#       temp_data[[value]] <- as.numeric(temp_data[[value]])
-#       
-#       temp_data[[paste0(value, "_SD")]] <- as.numeric(temp_data[[paste0(value, "_SD")]])
-#       
-#       avg_value <- temp_data |>
-#         pull(!!sym(value)) |>
-#         mean()
-#       
-#       W <- temp_data |>
-#         mutate(x = (!!sym(paste0(value, "_SD")))^2) |>
-#         pull(x) |>
-#         mean()
-#       
-#       B <- temp_data |>
-#         mutate(sqr_diff = (!!sym(value) - avg_value)^2) |>
-#         summarise(avg_square_diff = sum(sqr_diff)/(n()-1)) |>
-#         pull(avg_square_diff)
-#       
-#       T_est <- W + (1 + 1/k)*B
-#       
-#       avg_lci <- avg_value - qnorm(0.975)*sqrt(T_est)
-#       avg_uci <- avg_value + qnorm(0.975)*sqrt(T_est)
-#       
-#       assign(value, paste0(sprintf("%.2f", avg_value), " (", sprintf("%.2f", avg_lci), ", ", sprintf("%.2f", avg_uci), ")"))
-#       
-#     }
-#   
-#   }
-# 
-#   table2_cross_val[nrow(table2_cross_val)+1,] <- c(model, dataset, MIRAI, GAIL, Cumulus, AUC)
-#   
-# }
-# 
-# table2_cross_val
 
 ```
