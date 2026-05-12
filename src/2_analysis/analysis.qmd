@@ -1806,3 +1806,68 @@ table2_clean <- table2 |>
 
 ```
 
+### Addition of GAIL to MIRAI
+```{r}
+
+model <- list()
+or_estimations <- scores_and_rf_data$output
+
+for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
+  
+  # Create matching variables
+  temp_data <- or_estimations |>
+    filter(!is.na(!!sym(score))) |>
+    filter(cc_status == 0)
+
+  # Fit model calculating score using matching variables
+  # Fitting model on controls that have the score measured
+  model[[score]] <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age + match.ethnicity")), data = temp_data)
+  
+  # Predict on whole dataset and calculate residuals
+  or_estimations[!is.na(or_estimations[[score]]), paste0(score, "_res")] <- predict(model[[score]], or_estimations[!is.na(or_estimations[[score]]),])
+  or_estimations[[paste0(score, "_res")]] <- qlogis(or_estimations[[score]]/100) - or_estimations[[paste0(score, "_res")]]
+  
+  # Calculate missingness indicator variable
+  or_estimations[[paste0(score, "_res_missing")]] <- is.na(or_estimations[[paste0(score, "_res")]])
+  or_estimations[[paste0(score, "_res")]][is.na(or_estimations[[paste0(score, "_res")]])] <- 0
+  
+  
+}
+
+# Find OR of GAIL
+model <- or_estimations |>
+  glm(formula = cc_status ~ mirai_score_5y_res + gail_score_res, family = "binomial")
+
+beta <- model$coefficients[names(model$coefficients) == "gail_score_res"]
+
+or_estimations <- or_estimations |>
+  mutate(
+    or_gail = exp(beta*gail_score_res)
+  )
+
+avg_or_gail_controls <- or_estimations |>
+  filter(cc_status == 0) |>
+  pull(or_gail) |>
+  mean()
+
+or_estimations <- or_estimations |>
+  mutate(
+    or_gail = or_gail/avg_or_gail_controls,
+    mirai_score_5y_gail = mirai_score_5y * or_gail
+  )
+
+or_estimations |>
+  ggplot(aes(x = logit(mirai_score_5y/100), y = logit(mirai_score_5y_gail/100))) + geom_point()
+
+or_estimations |>
+  mutate(across(c(mirai_score_5y, mirai_score_5y_gail), function(x){
+    case_when(
+      x <= 3 ~ ">0-3%",
+      x <= 8 ~ ">3-8%",
+      TRUE ~ ">8%"
+    )
+  })) |>
+  xtabs(formula = rep(100/nrow(or_estimations), nrow(or_estimations)) ~ mirai_score_5y + mirai_score_5y_gail)
+
+```
+
