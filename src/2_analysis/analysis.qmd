@@ -42,6 +42,7 @@ library(scales)
 library(iCARE)
 library(forcats)
 library(rsample)
+library(ggsankey)
 
 ```
 
@@ -1806,7 +1807,7 @@ table2_clean <- table2 |>
 
 ```
 
-### Addition of GAIL to MIRAI
+### Addition GAIL and Cumulus to MIRAI
 ```{r}
 
 model <- list()
@@ -1834,40 +1835,126 @@ for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
   
 }
 
-# Find OR of GAIL
-model <- or_estimations |>
-  glm(formula = cc_status ~ mirai_score_5y_res + gail_score_res, family = "binomial")
+# Number of folds
+k <- 5
 
-beta <- model$coefficients[names(model$coefficients) == "gail_score_res"]
+# Set seed
+set.seed(987)
 
-or_estimations <- or_estimations |>
+# Split data
+cross_val_data <- or_estimations |>
+  slice(sample(1:n())) |>
+  mutate(group = ceiling(k * row_number()/n()))
+
+# Initialise output
+output <- list()
+
+# Loop through folds
+for(i in 1:k){
+  
+  # Addition of GAIL to Mirai
+  indep_model <- cross_val_data |>
+    filter(group != i) |>
+    lm(formula = gail_score_res ~ mirai_score_5y_res)
+  
+  # Replace residuals with new residuals
+  training_data <- cross_val_data |>
+    filter(group != i) |>
+    mutate(gail_score_res_2 = indep_model$residuals)
+  
+  # Fit model
+  cc_model <- training_data |>
+    glm(formula = cc_status ~ mirai_score_5y_res + gail_score_res_2, family = "binomial")
+  
+  # Extract beta coefficient
+  beta <- cc_model$coefficients[names(cc_model$coefficients) == "gail_score_res_2"]
+  
+  # Calculate odds ratios
+  output[[i]] <- cross_val_data |>
+    filter(group == i) |>
+    mutate(
+      gail_score_res_2 = gail_score_res - predict(indep_model, newdata = cur_data()),
+      or_gail = exp(beta * gail_score_res_2),
+      or_gail = or_gail / mean(or_gail[cc_status == 0]),
+      mirai_score_5y_gail = mirai_score_5y * or_gail
+    ) |>
+    filter(cc_status == 1) |>
+    mutate(across(c(mirai_score_5y, mirai_score_5y_gail), function(x){
+          case_when(
+            x <= 3 ~ ">0-3%",
+            x <= 8 ~ ">3-8%",
+            TRUE ~ ">8%"
+          )
+    }))
+  
+  
+}
+
+# Combine output together
+output_combined <- bind_rows(output) |>
+  mutate(weight = 100/n()) |>
+  xtabs(formula = weight ~ mirai_score_5y + mirai_score_5y_gail) |>
+  as.data.frame()
+  
+# Plot Sankey Diagram
+sankey_data <- output_combined |>
+  mutate(x = "MIRAI",
+         next_x = "MIRAI + GAIL",
+         node = case_when(
+            mirai_score_5y == ">0-3%" ~ 0,
+            mirai_score_5y == ">3-8%" ~ 1,
+            mirai_score_5y == ">8%" ~ 2
+         ),
+         next_node = case_when(
+            mirai_score_5y_gail == ">0-3%" ~ 0,
+            mirai_score_5y_gail == ">3-8%" ~ 1,
+            mirai_score_5y_gail == ">8%" ~ 2
+         ),
+         value = Freq)
+
+sankey_data_extra <- sankey_data |>
+  mutate(x = "MIRAI + GAIL",
+         next_x = NA,
+         node = next_node,
+         next_node = NA,
+         value = Freq)
+
+sankey_data <- bind_rows(sankey_data, sankey_data_extra) |>
+  mutate(x = factor(x, levels = c("MIRAI","MIRAI + GAIL")),
+         next_x = factor(next_x, levels = c("MIRAI","MIRAI + GAIL")))
+
+node_totals <- sankey_data %>%
+  group_by(x, node) %>%
+  summarise(node_value = sum(value), .groups = "drop") %>%
+  group_by(x) %>%
   mutate(
-    or_gail = exp(beta*gail_score_res)
+    stage_total = sum(node_value),
+    pct = node_value / stage_total * 100,
+    label = sprintf("%.1f%%", pct)
   )
 
-avg_or_gail_controls <- or_estimations |>
-  filter(cc_status == 0) |>
-  pull(or_gail) |>
-  mean()
+sankey_data <- sankey_data %>%
+  left_join(node_totals %>% select(x, node, label), 
+            by = c("x", "node"))
+         
+plot <- ggplot(sankey_data, aes(x = x, 
+               next_x = next_x, 
+               node = node, 
+               next_node = next_node,
+               fill = factor(node, levels = 0:2, labels = c(">0-3%", ">3-8%", ">8%")),
+               value = value,
+               label = label
+               )) +
+  geom_sankey(flow.alpha = .6,
+              node.color = "gray30") +
+  geom_sankey_label(size = 3.5, color = "black", fill = "white") +
+  theme_sankey(base_size = 15) +
+  labs(x = NULL,
+       fill = "10-Year Risk")
 
-or_estimations <- or_estimations |>
-  mutate(
-    or_gail = or_gail/avg_or_gail_controls,
-    mirai_score_5y_gail = mirai_score_5y * or_gail
-  )
 
-or_estimations |>
-  ggplot(aes(x = logit(mirai_score_5y/100), y = logit(mirai_score_5y_gail/100))) + geom_point()
+plot
 
-or_estimations |>
-  mutate(across(c(mirai_score_5y, mirai_score_5y_gail), function(x){
-    case_when(
-      x <= 3 ~ ">0-3%",
-      x <= 8 ~ ">3-8%",
-      TRUE ~ ">8%"
-    )
-  })) |>
-  xtabs(formula = rep(100/nrow(or_estimations), nrow(or_estimations)) ~ mirai_score_5y + mirai_score_5y_gail)
 
 ```
 
