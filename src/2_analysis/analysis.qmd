@@ -1882,10 +1882,10 @@ for(i in 1:k){
       mirai_score_5y_gail = mirai_score_5y * or_gail
     ) |>
     filter(cc_status == 1) |>
-    mutate(across(c(mirai_score_5y, mirai_score_5y_gail), function(x){
+    mutate(across(c(gail_score, mirai_score_5y, mirai_score_5y_gail), function(x){
           case_when(
             x <= 1.5 ~ ">0-1.5%",
-            x <= 8 ~ ">1.5-4%",
+            x <= 4 ~ ">1.5-4%",
             TRUE ~ ">4%"
           )
     }))
@@ -1894,13 +1894,33 @@ for(i in 1:k){
 }
 
 # Combine output together
-output_combined <- bind_rows(output) |>
+output_combined_1 <- bind_rows(output) |>
+  mutate(weight = 100/n()) |>
+  xtabs(formula = weight ~ mirai_score_5y + gail_score) |>
+  as.data.frame()
+
+output_combined_2 <- bind_rows(output) |>
   mutate(weight = 100/n()) |>
   xtabs(formula = weight ~ mirai_score_5y + mirai_score_5y_gail) |>
   as.data.frame()
   
 # Plot Sankey Diagram
-sankey_data <- output_combined |>
+sankey_data_1 <- output_combined_1 |>
+  mutate(x = "GAIL",
+         next_x = "MIRAI",
+         node = case_when(
+            gail_score == ">0-1.5%" ~ 0,
+            gail_score == ">1.5-4%" ~ 1,
+            gail_score == ">4%" ~ 2
+         ),
+         next_node = case_when(
+            mirai_score_5y == ">0-1.5%" ~ 0,
+            mirai_score_5y == ">1.5-4%" ~ 1,
+            mirai_score_5y == ">4%" ~ 2
+         ),
+         value = Freq)
+
+sankey_data_2 <- output_combined_2 |>
   mutate(x = "MIRAI",
          next_x = "MIRAI + GAIL",
          node = case_when(
@@ -1915,16 +1935,18 @@ sankey_data <- output_combined |>
          ),
          value = Freq)
 
-sankey_data_extra <- sankey_data |>
+sankey_data_extra_2 <- sankey_data_2 |>
   mutate(x = "MIRAI + GAIL",
          next_x = NA,
          node = next_node,
          next_node = NA,
          value = Freq)
 
-sankey_data <- bind_rows(sankey_data, sankey_data_extra) |>
-  mutate(x = factor(x, levels = c("MIRAI","MIRAI + GAIL")),
-         next_x = factor(next_x, levels = c("MIRAI","MIRAI + GAIL")))
+sankey_data <- sankey_data_1 |>
+  bind_rows(sankey_data_2) |>
+  bind_rows(sankey_data_extra_2) |>
+  mutate(x = factor(x, levels = c("GAIL", "MIRAI","MIRAI + GAIL")),
+         next_x = factor(next_x, levels = c("GAIL", "MIRAI","MIRAI + GAIL")))
 
 node_totals <- sankey_data %>%
   group_by(x, node) %>%
@@ -1959,7 +1981,7 @@ plot <- ggplot(sankey_data, aes(x = x,
 plot
 
 
-ggsave(plot, filename = "../../results/plots_svg/classification_sankey.svg", height = 5, width =6)
+ggsave(plot, filename = "../../results/plots_svg/classification_sankey.svg", height = 5, width = 12)
 
 ```
 
