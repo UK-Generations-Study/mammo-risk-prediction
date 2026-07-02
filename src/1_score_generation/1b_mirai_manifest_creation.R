@@ -13,14 +13,14 @@ data_all_mammo_metadata_fn <- r"(R:\Shared\GENERATIONS\CoreData\v20230927\RDSCCM
 data_all_mammo_metadata <- read.csv(data_all_mammo_metadata_fn, stringsAsFactors = FALSE)
 
 # Load filenames of exported DICOMs (following subset selection)
-data_available_mammo_images_dn <- r"(R:\INCANEPI\Generations\Projects\mammo_risk_prediction\data\dicoms_202508)"
+data_available_mammo_images_dn <- r"(R:\INCANEPI\Generations\Projects\mammo_risk_prediction\mirai\data\dicoms_202508)"
 data_available_mammo_images_fns <- data.frame(filename = list.files(data_available_mammo_images_dn))
 data_available_mammo_images_fns$SOPInstanceUID <- tools::file_path_sans_ext(gsub('_', '.', data_available_mammo_images_fns$filename))
 data_available_mammo_images_fns <- data_available_mammo_images_fns %>% left_join(data_all_mammo_metadata, by='SOPInstanceUID')
 
 # Partipants not in the exported data
 #eligible_ids_strategyA <- read.csv(r"(R:\INCANEPI\Generations\Projects\mammo_risk_prediction\data\eligible_dicomuids_strategyA.csv)")
-eligible_ids_strategyB <- read.csv(r"(R:\INCANEPI\Generations\Projects\mammo_risk_prediction\data\eligible_dicomuids_mammodate_strategyB_cumulus.csv)")
+eligible_ids_strategyB <- read.csv(r"(R:\INCANEPI\Generations\Projects\mammo_risk_prediction\mirai\data\eligible_dicomuids_mammodate_strategyB_cumulus.csv)")
 #eligible_ids <- rbind(eligible_ids_strategyA, eligible_ids_strategyB)
 eligible_ids <- eligible_ids_strategyB
 #data_all_mammo_metadata %>% dplyr::filter(SOPInstanceUID %in% eligible_ids_strategyA[!eligible_ids_strategyA$SOPInstanceUID %in% data_available_mammo_images_fns$SOPInstanceUID, 'SOPInstanceUID']) %>% pull(TCode) %>% unique()
@@ -122,7 +122,7 @@ mirai_manifest_strategyB <- mirai_manifest_strategyB %>% arrange(patient_id, vie
 #mirai_manifest_output_dn <- r"(R:\INCANEPI\Generations\Projects\mammo_risk_prediction\data\mirai_manifest_strategyA.csv)"
 #write.csv(mirai_manifest_strategyA, mirai_manifest_output_dn, row.names=F)
 #mirai_manifest_output_dn <- r"(R:\INCANEPI\Generations\Projects\mammo_risk_prediction\data\mirai_manifest_strategyB.csv)"
-mirai_manifest_output_dn <- r"(C:\Users\dadams\DocumentsUnsynced\Projects\mammograms\_DATA\mirai_manifest_202508.csv)"
+mirai_manifest_output_dn <- r"(R:\INCANEPI\Generations\Projects\mammo_risk_prediction\mirai\data\mirai_manifests\mirai_manifest_202508.csv)"
 write.csv(mirai_manifest_strategyB, mirai_manifest_output_dn, row.names=F)
 
 ############################
