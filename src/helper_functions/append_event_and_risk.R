@@ -84,8 +84,6 @@ append_risk_scores <- function(data, eligible_dicom_uids, years, return_data=F) 
   data <- data |>
     merge(risk_mirai, by='TCode')
   
-  print(summary(data$mirai_score_5y))
-  
   #browser()
     # Append Cumulus scores
   data_cumulus <- read.csv("//rds/data/DGE/DUDGE/Shared/GENERATIONS/CoreData/v20230927/RDSCCMammoCumulus_v1.csv")  
