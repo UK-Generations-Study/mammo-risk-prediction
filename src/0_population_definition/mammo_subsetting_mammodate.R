@@ -18,6 +18,29 @@ data_mammo_cumulus <- read.csv(data_mammo_cumulus_fn, stringsAsFactors = FALSE)
 data_mammo_set_fn <- r"(\\rds\Data\DGE\DUDGE\Shared\GENERATIONS\CoreData\v20230927\RDSCCMammoSet_v1.csv)"
 data_mammo_set <- read.csv(data_mammo_set_fn, stringsAsFactors = FALSE)
 
+# Function for counting participants for CONSORT diagram
+count_population <- function(data){
+  
+  data_subset <- data_mammo_set |>
+    filter(TCode %in% data$TCode) |>
+    select(TCode, CaseControlRequestStatus) |>
+    distinct() |>
+    xtabs(formula = ~ CaseControlRequestStatus)
+  
+  # print(data_subset)
+  # 
+  # old_not_new_subset <- data |>
+  #   filter(TCode %in% old_not_new) |>
+  #   select(TCode) |>
+  #   distinct() |>
+  #   nrow()
+  # 
+  # cat(old_not_new_subset, "participants in the old dataset remaining\n\n")
+  
+  return(data_subset)
+  
+}
+
 # ------------------------- #
 # A. Selecting participants
 # ------------------------- #
@@ -30,8 +53,12 @@ table(data_mammo_images$ManuModelName) # Hologic Selenia, Lorad Selenia, Selenia
 with(data_mammo_images %>% filter(Manufacturer %in% c('HOLOGIC, Inc.', 'LORAD', 'Lorad, A Hologic Company')), table(ManuModelName, Manufacturer,useNA="always"))
 with(data_mammo_images %>% filter(ManuModelName %in% c('Hologic Selenia', 'Lorad Selenia', 'Selenia Dimensions')), table(Manufacturer, ManuModelName,useNA="always"))
 
+count_population(data_mammo_images)
+
 subset_step1 <- data_mammo_images %>% filter(ManuModelName %in% c('Hologic Selenia', 'Lorad Selenia', 'Selenia Dimensions'), 
                                              Manufacturer %in% c('HOLOGIC, Inc.', 'LORAD', 'Lorad, A Hologic Company')) # This drops unspecified or non-Hologic/Lorad manufacturer names to be safe. 
+
+count_population(subset_step1)
 
 #data_mammo_images %>% filter(Manufacturer %in% c('HOLOGIC, Inc.', 'LORAD', 'Lorad, A Hologic Company')) %>% group_by(ManuModelName) %>% summarise(participants=length(unique(TCode.x)))
 
@@ -40,10 +67,16 @@ with(subset_step1, table(ManuModelName, PresentationIntentType))
 subset_step2 <- subset_step1 %>% filter(PresentationIntentType == 'FOR PRESENTATION')
 with(subset_step2, table(ManuModelName, Manufacturer)) 
 
+count_population(subset_step2)
+
+
 # 3. Exclusion of DICOMs for which we have no information on the date the mammogram was taken.
 # Also filtering the mammoset to exclude those collected for USD Study Only
 subset_step3 <- subset_step2 %>% left_join(data_mammo_set %>% filter(Comments != "USD Study Only") |> dplyr::select(SOPInstanceUID, MammoDate, YearOfMammo), by = 'SOPInstanceUID') %>%
   filter(MammoDate != 'NULL')
+
+count_population(subset_step3)
+
 
 # 4. "all four standard views" (L CC, L MLO, R CC, and R MLO)
 # Question:
@@ -61,6 +94,8 @@ subset_step4 <- subset_step3 %>% mutate(MammoDate = dmy(MammoDate)) %>%
          View_m %in% required_views) %>%
   ungroup()
 
+count_population(subset_step4)
+
 table(subset_step4$View_m, subset_step4$ViewPosition)
 
 # 5. Implants: Within Mirai paper, in test of generalization the population was "without implants and without prior breast cancer"
@@ -69,6 +104,9 @@ subset_step5 <- subset_step4 %>%
   group_by(TCode, StudyIndex) %>%
   filter(all(BreastImplantPresent == 'NO')) %>%
   ungroup()
+
+count_population(subset_step5)
+
 
 # The number of DICOMs we have for each study (some have extra L/R MLO/CC views)
 # View(subset_step5 %>%
@@ -112,6 +150,9 @@ subset_step6 <- subset_step6 %>%
   dplyr::select(-setdiff(setdiff(colnames(subset_step6), colnames(subset_step5)), c('fupca_end_reason', 'study.exit.age', 'study.entry.age', 'time.of.onset', 'fupca_start_F'))) |>
   rename(MammoDate = fupca_start_F)
 
+count_population(subset_step6)
+
+
 #### -- sAnItY check -- ####
 
 # subset_step6_breast <- subset_step5 %>% dplyr::select(-StudyDate_m) |> 
@@ -131,16 +172,23 @@ subset_step6 <- subset_step6 %>%
 
 # 7. ! patients who did not have at least 1 year of screening follow-up (ie., died)
 # study.exit.age - study.entry.age < 1 & fupca_end_reason == 22
-# subset_step7a <- subset_step6 %>% filter(!(study.exit.age - study.entry.age < 1 & fupca_end_reason == 22))
-subset_step7a <- subset_step6 %>% filter(!(study.exit.age - study.entry.age < 1))
+subset_step7a <- subset_step6 %>% filter(!(study.exit.age - study.entry.age < 1 & fupca_end_reason == 22))
+# subset_step7a <- subset_step6 %>% filter(!(study.exit.age - study.entry.age < 1))
+
+count_population(subset_step7a)
+
 
 # 8. For Strategy B: Dropping mammogram studies taken less than 1 year before an invasive/in situ breast cancer cancer diagnosis.
-subset_step7b <- subset_step7a %>% left_join(get_earliest_cancer(data_cancer = data_cancer, cancer = 'inv_DCIS_LCIS_breast') %>% 
+subset_step7b <- subset_step7a %>% left_join(get_earliest_cancer(data_cancer = data_cancer, cancer = 'inv_DCIS_LCIS_breast') %>%
+# subset_step7b <- subset_step7a %>% left_join(get_earliest_cancer(data_cancer = data_cancer, cancer = 'all_breast') %>% 
                                              dplyr::select(TCode, date_diag), by ='TCode') %>%
   filter(is.na(date_diag) | time_length(interval(MammoDate, date_diag), "year") >= 1)
 # with(subset_step7 %>% left_join(get_earliest_cancer(data_cancer = data_cancer, cancer = 'breast') %>% 
 # dplyr::select(TCode, date_diag), by ='TCode') %>% mutate(diff = time_length(interval(StudyDate_m_fmt, date_diag), "year")), hist(diff, breaks=20))
 setdiff(subset_step7a$TCode, subset_step7b$TCode) # Participants whose only mammogram study was within 1 yr prior to diagnosis
+
+count_population(subset_step7b)
+
 
 # Finally:
 # Export unique TCodes
