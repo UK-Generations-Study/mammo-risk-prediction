@@ -27,16 +27,6 @@ count_population <- function(data){
     distinct() |>
     xtabs(formula = ~ CaseControlRequestStatus)
   
-  # print(data_subset)
-  # 
-  # old_not_new_subset <- data |>
-  #   filter(TCode %in% old_not_new) |>
-  #   select(TCode) |>
-  #   distinct() |>
-  #   nrow()
-  # 
-  # cat(old_not_new_subset, "participants in the old dataset remaining\n\n")
-  
   return(data_subset)
   
 }
@@ -59,8 +49,6 @@ subset_step1 <- data_mammo_images %>% filter(ManuModelName %in% c('Hologic Selen
                                              Manufacturer %in% c('HOLOGIC, Inc.', 'LORAD', 'Lorad, A Hologic Company')) # This drops unspecified or non-Hologic/Lorad manufacturer names to be safe. 
 
 count_population(subset_step1)
-
-#data_mammo_images %>% filter(Manufacturer %in% c('HOLOGIC, Inc.', 'LORAD', 'Lorad, A Hologic Company')) %>% group_by(ManuModelName) %>% summarise(participants=length(unique(TCode.x)))
 
 # 2. "Mirai expects [...] “For Presentation” views of the mammogram"
 with(subset_step1, table(ManuModelName, PresentationIntentType))
@@ -107,17 +95,6 @@ subset_step5 <- subset_step4 %>%
 
 count_population(subset_step5)
 
-
-# The number of DICOMs we have for each study (some have extra L/R MLO/CC views)
-# View(subset_step5 %>%
-#        group_by(TCode, StudyIndex) %>%
-#        summarise(DICOMs = n()) %>% arrange(desc(DICOMs)))
-# 
-# View(subset_step5 %>%
-#        group_by(TCode, StudyIndex) %>%
-#        #filter(n() > 4) %>%
-#        ungroup())
-
 # Sanity check
 sanity_check <- subset_step5 %>% left_join(data_mammo_set %>% dplyr::select('SOPInstanceUID', 'ImageType'), by = c('SOPInstanceUID'))
 sanity_check_digitised <- sanity_check %>% filter(ImageType.y == 'Analogue_Digitised') # Labelled (potentially incorrectly) as digitised
@@ -129,11 +106,7 @@ table(sanity_check_digitised$DetectorType)
 
 # 6. ! prior history of breast cancer (including sarcomas of the breast)   ("to enable fair comparison against the Tyrer-Cuzick model")
 data_cancer <- read.csv("//rds/data/DGE/DUDGE/Shared/GENERATIONS/CoreData/v20230927/RDSCaSummary_V1.csv")
-# subset_step5_lateststudy <- subset_step5 %>%
-#   group_by(TCode) %>%
-#   filter(StudyDate_m_fmt == max(StudyDate_m_fmt, na.rm = TRUE)) %>%
-#   ungroup()
-# write.csv(subset_step5_lateststudy[,'SOPInstanceUID',drop=F], r"(../../../data/eligible_dicomuids_lateststudy3.csv)", row.names=F)
+
 data_images_dates <- data_mammo_set|>
   filter(SOPInstanceUID %in% subset_step5$SOPInstanceUID) |>
   group_by(SOPInstanceUID) |>
@@ -152,51 +125,18 @@ subset_step6 <- subset_step6 %>%
 
 count_population(subset_step6)
 
-
-#### -- sAnItY check -- ####
-
-# subset_step6_breast <- subset_step5 %>% dplyr::select(-StudyDate_m) |> 
-#   merge(data_images_dates, by = "SOPInstanceUID") |>
-#   do(create_analytical_dataset(., years = NA, cancer = "breast", fup_start_date = "StudyDate_m", data_cancer = data_cancer))
-# 
-# subset_step6_datediag <- subset_step6 %>% group_by(TCode) %>% summarise(date_diag = unique(date_diag))
-# subset_step6_breast_datediag <- subset_step6_breast %>% group_by(TCode) %>% summarise(date_diag = unique(date_diag))
-# merged <- subset_step6_breast_datediag %>% left_join(subset_step6_datediag, by='TCode')
-# any(merged$date_diag.y < merged$date_diag.x, na.rm=T)
-# 
-# subset_step6 <- get_earliest_cancer(data_cancer = data_cancer, cancer = 'breast')
-# 
-# get_earliest_cancer(data_cancer = data_cancer, cancer = 'breast')
-
-#### -- sAnItY check -- ####
-
 # 7. ! patients who did not have at least 1 year of screening follow-up (ie., died)
-# study.exit.age - study.entry.age < 1 & fupca_end_reason == 22
 subset_step7a <- subset_step6 %>% filter(!(study.exit.age - study.entry.age < 1 & fupca_end_reason == 22))
-# subset_step7a <- subset_step6 %>% filter(!(study.exit.age - study.entry.age < 1))
 
 count_population(subset_step7a)
 
 
 # 8. For Strategy B: Dropping mammogram studies taken less than 1 year before an invasive/in situ breast cancer cancer diagnosis.
-subset_step7b <- subset_step7a %>% left_join(get_earliest_cancer(data_cancer = data_cancer, cancer = 'inv_DCIS_LCIS_breast') %>%
-# subset_step7b <- subset_step7a %>% left_join(get_earliest_cancer(data_cancer = data_cancer, cancer = 'all_breast') %>% 
+subset_step7b <- subset_step7a %>% left_join(get_earliest_cancer(data_cancer = data_cancer, cancer = 'all_breast') %>%
                                              dplyr::select(TCode, date_diag), by ='TCode') %>%
   filter(is.na(date_diag) | time_length(interval(MammoDate, date_diag), "year") >= 1)
-# with(subset_step7 %>% left_join(get_earliest_cancer(data_cancer = data_cancer, cancer = 'breast') %>% 
-# dplyr::select(TCode, date_diag), by ='TCode') %>% mutate(diff = time_length(interval(StudyDate_m_fmt, date_diag), "year")), hist(diff, breaks=20))
-setdiff(subset_step7a$TCode, subset_step7b$TCode) # Participants whose only mammogram study was within 1 yr prior to diagnosis
 
 count_population(subset_step7b)
-
-
-# Finally:
-# Export unique TCodes
-subset_step7a_tcodes <- unique(subset_step7a[,'TCode'])
-# setwd(dirname(rstudioapi::getSourceEditorContext()$path))
-# write.csv(subset_step7a_tcodes, r"(../../../data/eligible_tcodes_mammodate.csv)", row.names=F)
-# Export all possible studies
-# write.csv(subset_step7a[,'SOPInstanceUID',drop=F], r"(../../../data/all_eligible_dicomuids_mammodate.csv)", row.names=F)
 
 # ------------------------- #
 # B. Selecting studies
@@ -205,9 +145,6 @@ subset_step7a_tcodes <- unique(subset_step7a[,'TCode'])
 # How many studies per participant?
 subset_step7a %>% group_by(TCode) %>% summarise(Studies = length(unique(StudyIndex)))
 subset_step7b %>% group_by(TCode) %>% summarise(Studies = length(unique(StudyIndex)))
-
-# Filtering to studies with at least 4 views
-# subset_step5 %>% group_by(TCode, StudyIndex) %>% summarise(DICOMs = n()) # All have at least 4.
 
 # Get studies with Cumulus measurements
 cumulus_studies <- data_mammo_cumulus |>
@@ -255,25 +192,6 @@ subset_step8c <- subset_step8c |>
   ) |>
   filter(MammoDate == max(MammoDate, na.rm = TRUE)) |>
   ungroup()
-
-# # # To sanity check, the different DICOMs in B come from participants that in A had their mammogram study LATER ONLY.
-# This is prior to removal of repeated (tcode, view, laterality) combinations
-extra_dicoms_to_request_tcodes <- unique(subset_step8b %>% dplyr::filter(SOPInstanceUID %in% 
-                                                                           setdiff(subset_step8b$SOPInstanceUID, subset_step8a$SOPInstanceUID))
-                                         %>% pull(TCode))
-# subset_step8a %>% distinct(TCode,StudyDate_m_fmt) %>% dplyr::select(TCode, StudyDate_m_fmt) %>% 
-#   left_join(subset_step8b %>% distinct(TCode,StudyDate_m_fmt, date_diag) %>% dplyr::select(TCode, date_diag, StudyDate_m_fmt), by='TCode') %>%
-#   dplyr::filter(TCode %in% extra_dicoms_to_request_tcodes) 
-
-# # The number of DICOMs we have for each study (some have extra L/R MLO/CC views)
-# View(subset_step6 %>%
-#        group_by(TCode, StudyIndex) %>%
-#        summarise(DICOMs = n()) %>% arrange(desc(DICOMs)))
-# 
-# # Confirming one study selected per participant
-# with(subset_step6 %>%
-#        group_by(TCode, StudyIndex) %>%
-#        summarise(DICOMs = n()) %>% arrange(desc(DICOMs)), !any(duplicated(TCode)))
 
 # Subset B: Drop all studies within one year preceding earliest breast cancer diagnosis 
 
@@ -354,61 +272,9 @@ length(unique(subset_step9b_diffstudies$TCode)) / length(unique(subset_step9a$TC
 length(setdiff(subset_step9a$TCode, subset_step9b$TCode)) + length(unique(subset_step9b_diffstudies$TCode)) # Number
 (length(setdiff(subset_step9a$TCode, subset_step9b$TCode)) + length(unique(subset_step9b_diffstudies$TCode))) /
   length(unique(subset_step9a$TCode))
-# # Sanity checking this
-# participants_with_prediag_mammo <- subset_step7a %>% left_join(get_earliest_cancer(data_cancer = data_cancer, cancer = 'breast') %>% 
-#                               dplyr::select(TCode, date_diag), by ='TCode') %>%
-#   filter(!is.na(date_diag) & time_length(interval(StudyDate_m_fmt, date_diag), "year") < 1) %>% pull(TCode) # Correct
-# 
-# View(subset_step9a %>% dplyr::distinct(TCode, StudyDate_m_fmt) %>% inner_join(subset_step9b_diffstudies, by='TCode'))
-# View(subset_step9a %>% dplyr::distinct(TCode, StudyDate_m_fmt) %>% inner_join(subset_step9b_diffstudies %>% dplyr::distinct(TCode, StudyDate_m_fmt, date_diag), by='TCode'))
-
-# DICOMs per TCode
-# View(subset_step9a %>%
-#        group_by(TCode) %>%
-#        summarise(DICOMs = n()) %>% arrange(desc(DICOMs)))
-# View(subset_step9b %>%
-#        group_by(TCode) %>%
-#        summarise(DICOMs = n()) %>% arrange(desc(DICOMs)))
 
 # Exporting list of DICOM identifiers
 # setwd(dirname(rstudioapi::getSourceEditorContext()$path))
 # write.csv(subset_step9a[,'SOPInstanceUID',drop=F], r"(../../../data/eligible_dicomuids_mammodate_strategyA.csv)", row.names=F)
 # write.csv(subset_step9b[,'SOPInstanceUID',drop=F], r"(../../../data/eligible_dicomuids_mammodate_strategyB.csv)", row.names=F)
-# write.csv(subset_step9c[,'SOPInstanceUID',drop=F], r"(../../../data/eligible_dicomuids_mammodate_strategyB_cumulus.csv)", row.names=F)
-
-
-# # Differences vs. StudyDate selection
-# Saving all new DICOM UIDs relative to studydate selection
-# eligible_dicomuids_mammodate_strategyA <- read.csv(r"(../../../data/eligible_dicomuids_mammodate_strategyA.csv)")
-# eligible_dicomuids_studydate_strategyA <- read.csv(r"(../../../data/eligible_dicomuids_strategyA.csv)")
-# eligible_dicomuids_mammodate_strategyB <- read.csv(r"(../../../data/eligible_dicomuids_mammodate_strategyB.csv)")
-# eligible_dicomuids_mammodate_strategyB_cumulus <- read.csv(r"(../../../data/eligible_dicomuids_mammodate_strategyB_cumulus.csv)")
-# eligible_dicomuids_studydate_strategyB <- read.csv(r"(../../../data/eligible_dicomuids_strategyB.csv)")
-# mammodate_new_dicomsuids_strategyA <- setdiff(eligible_dicomuids_mammodate_strategyA$SOPInstanceUID, eligible_dicomuids_studydate_strategyA$SOPInstanceUID)
-# mammodate_new_dicomsuids_strategyB <- setdiff(eligible_dicomuids_mammodate_strategyB$SOPInstanceUID, eligible_dicomuids_studydate_strategyB$SOPInstanceUID)
-# mammodate_new_dicomsuids_strategyB_cumulus_base <- setdiff(eligible_dicomuids_mammodate_strategyB_cumulus$SOPInstanceUID, eligible_dicomuids_studydate_strategyB$SOPInstanceUID)
-# mammodate_new_dicomsuids_strategyB_cumulus <- setdiff(eligible_dicomuids_mammodate_strategyB_cumulus$SOPInstanceUID, eligible_dicomuids_mammodate_strategyB$SOPInstanceUID)
-# write.csv(data.frame(SOPInstanceUID=unique(c(mammodate_new_dicomsuids_strategyB_cumulus_base))),
-#           r"(../../../data/eligible_dicomuids_request_aug18.csv)", row.names=F)
-
-eligible_dicomuids_mammodate_strategyB_cumulus <- read.csv(r"(../../../data/eligible_dicomuids_mammodate_strategyB_cumulus.csv)")
-
-setdiff(subset_step9c$SOPInstanceUID, eligible_dicomuids_mammodate_strategyB_cumulus$SOPInstanceUID)
-
-write.csv(data.frame(SOPInstanceUID = subset_step9c$SOPInstanceUID), r"(../../../data/eligible_dicomuids_mammodate_strategyB_cumulus_updated.csv)")
-write.csv(data.frame(SOPInstanceUID = setdiff(subset_step9c$SOPInstanceUID, eligible_dicomuids_mammodate_strategyB_cumulus$SOPInstanceUID)),
-          r"(../../../data/eligible_dicomuids_request_oct22.csv)")
-
-# tcodes_new <- data_mammo_set %>% 
-#   filter(SOPInstanceUID %in% (setdiff(eligible_dicomuids_mammodate_strategyB$SOPInstanceUID,
-#                                       eligible_dicomuids_studydate_strategyB$SOPInstanceUID))) %>% pull(unique(TCode))
-# View(subset_step2 %>% left_join(data_mammo_set %>% 
-#                                   dplyr::select(SOPInstanceUID, MammoDate, YearOfMammo), by = 'SOPInstanceUID') %>% 
-#        select(TCode, SOPInstanceUID, MammoDate, StudyDate_m) %>% filter(TCode %in% tcodes_new) %>% 
-#        mutate(SDSelection = SOPInstanceUID %in% eligible_dicomuids_studydate_strategyB$SOPInstanceUID, 
-#               MDSelection = SOPInstanceUID %in% eligible_dicomuids_mammodate_strategyB$SOPInstanceUID))
-
-# previously_requested_uids <- read.csv(r"(../../../data/eligible_dicomuids.csv)")
-# c(subset_step9a$SOPInstanceUID, subset_step9b$SOPInstanceUID)
-# new_uids <- setdiff(c(subset_step9a$SOPInstanceUID, subset_step9b$SOPInstanceUID), previously_requested_uids$SOPInstanceUID)
-# write.csv(data.frame(SOPInstanceUID=new_uids), r"(../../../data/eligible_dicomuids_new.csv)", row.names=F)
+# write.csv(subset_step9c[,'SOPInstanceUID',drop=F], "../../../../../data/case_control/population/eligible_dicomuids_mammodate_strategyB_cumulus_20260812.csv", row.names=F)
