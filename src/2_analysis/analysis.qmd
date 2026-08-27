@@ -56,8 +56,21 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 ### Read in data
 ```{r}
 
+# Function for counting participants for CONSORT diagram
+count_population <- function(data){
+  
+  data_subset <- data_mammoset |>
+    filter(TCode %in% data$TCode) |>
+    select(TCode, CaseControlRequestStatus) |>
+    distinct() |>
+    xtabs(formula = ~ CaseControlRequestStatus)
+  
+  return(data_subset)
+  
+}
+
 # Defining population: Eligible DICOM UIDS
-eligible_dicoms_fn <- "../../../data/eligible_dicomuids_mammodate_strategyB_cumulus.csv"
+eligible_dicoms_fn <- "../../../../../data/case_control/population/eligible_dicomuids_mammodate_strategyB_cumulus.csv"
 eligible_dicom_uids <- read.csv(eligible_dicoms_fn)
 
 # Read in MammoSet
@@ -153,10 +166,18 @@ plot_y_vs_all <- function(
 ```{r, warning=F, message=F}
 
 scores_and_rf_data <- eligible_dicom_uids %>%
-  append_event_data() %>% append_risk_scores(read.csv(eligible_dicoms_fn), years = 5, return_data=T)
+  append_event_data()
+
+count_population(scores_and_rf_data)
+
+scores_and_rf_data <- scores_and_rf_data %>% append_risk_scores(read.csv(eligible_dicoms_fn), years = 5, return_data=T)
+
+count_population(scores_and_rf_data$output)
 
 scores_and_rf_data$output <- scores_and_rf_data$output %>%
   filter(!(time.of.onset < 1)) # drop non-DCIS/LCIS <1yr dx
+
+count_population(scores_and_rf_data$output)
 
 scores_and_rf_data$output <- scores_and_rf_data$output |>
   # Need MIRAI scale to be different
@@ -267,8 +288,9 @@ scores_and_rf_data$output <- scores_and_rf_data$output |>
       TRUE ~ "[13,16)"
     )
     
-  ) |>
-  filter(time.of.onset > 1)
+  )
+
+count_population(scores_and_rf_data$output)
 
 ```
 
@@ -569,7 +591,371 @@ ggsave(
 p
 ```
 
+### Figure 2a
+```{r}
 
+model <- list()
+or_estimations <- scores_and_rf_data$output
+
+for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
+  
+  # Create matching variables
+  temp_data <- or_estimations |>
+    filter(!is.na(!!sym(score))) |>
+    filter(cc_status == 0)
+
+  # Fit model calculating score using matching variables
+  # Fitting model on controls that have the score measured
+  model[[score]] <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age + match.ethnicity")), data = temp_data)
+  
+  # Predict on whole dataset and calculate residuals
+  or_estimations[!is.na(or_estimations[[score]]), paste0(score, "_res")] <- predict(model[[score]], or_estimations[!is.na(or_estimations[[score]]),])
+  or_estimations[[paste0(score, "_res")]] <- qlogis(or_estimations[[score]]/100) - or_estimations[[paste0(score, "_res")]]
+  
+  # Calculate missingness indicator variable
+  or_estimations[[paste0(score, "_res_missing")]] <- is.na(or_estimations[[paste0(score, "_res")]])
+  or_estimations[[paste0(score, "_res")]][is.na(or_estimations[[paste0(score, "_res")]])] <- 0
+  
+  
+}
+
+# Number of folds
+k <- 5
+
+# Set seed
+set.seed(987)
+
+# Split data
+cross_val_data <- or_estimations |>
+  slice(sample(1:n())) |>
+  mutate(group = ceiling(k * row_number()/n()))
+
+# Initialise output
+output <- list()
+
+# Loop through folds
+for(i in 1:k){
+  
+  # Addition of GAIL to Mirai
+  indep_model <- cross_val_data |>
+    filter(group != i) |>
+    lm(formula = gail_score_res ~ mirai_score_5y_res)
+  
+  # Replace residuals with new residuals
+  training_data <- cross_val_data |>
+    filter(group != i) |>
+    mutate(gail_score_res_2 = indep_model$residuals)
+  
+  # Fit model
+  cc_model <- training_data |>
+    glm(formula = cc_status ~ mirai_score_5y_res + gail_score_res_2, family = "binomial")
+  
+  # Extract beta coefficient
+  beta <- cc_model$coefficients[names(cc_model$coefficients) == "gail_score_res_2"]
+  
+  # Calculate odds ratios
+  output[[i]] <- cross_val_data |>
+    filter(group == i) |>
+    mutate(
+      gail_score_res_2 = gail_score_res - predict(indep_model, newdata = cur_data()),
+      or_gail = exp(beta * gail_score_res_2),
+      or_gail = or_gail / mean(or_gail[cc_status == 0]),
+      mirai_score_5y_gail = mirai_score_5y * or_gail
+    ) |>
+    filter(cc_status == 1) |>
+    mutate(across(c(gail_score, mirai_score_5y, mirai_score_5y_gail), function(x){
+          case_when(
+            x <= 1.5 ~ ">0-1.5%",
+            x <= 4 ~ ">1.5-4%",
+            TRUE ~ ">4%"
+          )
+    }))
+  
+  
+}
+
+# Combine output together
+output_combined_1 <- bind_rows(output) |>
+  mutate(weight = 100/n()) |>
+  xtabs(formula = weight ~ mirai_score_5y + gail_score) |>
+  as.data.frame()
+
+output_combined_2 <- bind_rows(output) |>
+  mutate(weight = 100/n()) |>
+  xtabs(formula = weight ~ mirai_score_5y + mirai_score_5y_gail) |>
+  as.data.frame()
+  
+# Plot Sankey Diagram
+sankey_data_1 <- output_combined_1 |>
+  mutate(x = "Gail",
+         next_x = "Mirai",
+         node = case_when(
+            gail_score == ">0-1.5%" ~ 0,
+            gail_score == ">1.5-4%" ~ 1,
+            gail_score == ">4%" ~ 2
+         ),
+         next_node = case_when(
+            mirai_score_5y == ">0-1.5%" ~ 0,
+            mirai_score_5y == ">1.5-4%" ~ 1,
+            mirai_score_5y == ">4%" ~ 2
+         ),
+         value = Freq)
+
+sankey_data_2 <- output_combined_2 |>
+  mutate(x = "Mirai",
+         next_x = "Mirai + Gail",
+         node = case_when(
+            mirai_score_5y == ">0-1.5%" ~ 0,
+            mirai_score_5y == ">1.5-4%" ~ 1,
+            mirai_score_5y == ">4%" ~ 2
+         ),
+         next_node = case_when(
+            mirai_score_5y_gail == ">0-1.5%" ~ 0,
+            mirai_score_5y_gail == ">1.5-4%" ~ 1,
+            mirai_score_5y_gail == ">4%" ~ 2
+         ),
+         value = Freq)
+
+sankey_data_extra_2 <- sankey_data_2 |>
+  mutate(x = "Mirai + Gail",
+         next_x = NA,
+         node = next_node,
+         next_node = NA,
+         value = Freq)
+
+sankey_data <- sankey_data_1 |>
+  bind_rows(sankey_data_2) |>
+  bind_rows(sankey_data_extra_2) |>
+  mutate(x = factor(x, levels = c("Gail", "Mirai","Mirai + Gail")),
+         next_x = factor(next_x, levels = c("Gail", "Mirai","Mirai + Gail")))
+
+node_totals <- sankey_data %>%
+  group_by(x, node) %>%
+  summarise(node_value = sum(value), .groups = "drop") %>%
+  group_by(x) %>%
+  mutate(
+    stage_total = sum(node_value),
+    pct = node_value / stage_total * 100,
+    label = sprintf("%.1f%%", pct)
+  )
+
+sankey_data <- sankey_data %>%
+  left_join(node_totals %>% select(x, node, label), 
+            by = c("x", "node"))
+         
+plot <- ggplot(sankey_data, aes(x = x, 
+               next_x = next_x, 
+               node = node, 
+               next_node = next_node,
+               fill = factor(node, levels = 0:2, labels = c(">0-1.5%", ">1.5-4%", ">4%")),
+               value = value,
+               label = label
+               )) +
+  geom_sankey(flow.alpha = .6,
+              node.color = "gray30") +
+  geom_sankey_label(size = 3.5, color = "black", fill = "white") +
+  theme_sankey(base_size = 15) +
+  scale_fill_manual(
+    values = c(
+      ">0-1.5%" = "#458AFF",
+      ">1.5-4%" = "#00AF2A",
+      ">4%" = "#FC6257"
+    ),
+    breaks = c(">4%", ">1.5-4%", ">0-1.5%")
+  ) +
+  labs(x = NULL,
+       fill = "5-Year Risk")
+
+
+plot
+
+
+ggsave(plot, filename = "../../results/plots_svg/figure_2a.svg", height = 4, width = 8)
+
+```
+
+### Figure 2b
+```{r}
+
+model <- list()
+or_estimations <- scores_and_rf_data$output
+
+for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
+  
+  # Create matching variables
+  temp_data <- or_estimations |>
+    filter(!is.na(!!sym(score))) |>
+    filter(cc_status == 0)
+
+  # Fit model calculating score using matching variables
+  # Fitting model on controls that have the score measured
+  model[[score]] <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age + match.ethnicity")), data = temp_data)
+  
+  # Predict on whole dataset and calculate residuals
+  or_estimations[!is.na(or_estimations[[score]]), paste0(score, "_res")] <- predict(model[[score]], or_estimations[!is.na(or_estimations[[score]]),])
+  or_estimations[[paste0(score, "_res")]] <- qlogis(or_estimations[[score]]/100) - or_estimations[[paste0(score, "_res")]]
+  
+  # Calculate missingness indicator variable
+  or_estimations[[paste0(score, "_res_missing")]] <- is.na(or_estimations[[paste0(score, "_res")]])
+  or_estimations[[paste0(score, "_res")]][is.na(or_estimations[[paste0(score, "_res")]])] <- 0
+  
+  
+}
+
+# Number of folds
+k <- 5
+
+# Set seed
+set.seed(987)
+
+# Split data
+cross_val_data <- or_estimations |>
+  slice(sample(1:n())) |>
+  mutate(group = ceiling(k * row_number()/n()))
+
+# Initialise output
+output <- list()
+
+# Loop through folds
+for(i in 1:k){
+  
+  # Addition of GAIL to Mirai
+  indep_model <- cross_val_data |>
+    filter(group != i) |>
+    lm(formula = gail_score_res ~ mirai_score_5y_res)
+  
+  # Replace residuals with new residuals
+  training_data <- cross_val_data |>
+    filter(group != i) |>
+    mutate(gail_score_res_2 = indep_model$residuals)
+  
+  # Fit model
+  cc_model <- training_data |>
+    glm(formula = cc_status ~ mirai_score_5y_res + gail_score_res_2, family = "binomial")
+  
+  # Extract beta coefficient
+  beta <- cc_model$coefficients[names(cc_model$coefficients) == "gail_score_res_2"]
+  
+  # Calculate odds ratios
+  output[[i]] <- cross_val_data |>
+    filter(group == i) |>
+    mutate(
+      gail_score_res_2 = gail_score_res - predict(indep_model, newdata = cur_data()),
+      or_gail = exp(beta * gail_score_res_2),
+      or_gail = or_gail / mean(or_gail[cc_status == 0]),
+      mirai_score_5y_gail = mirai_score_5y * or_gail
+    ) |>
+    filter(cc_status == 0) |>
+    mutate(across(c(gail_score, mirai_score_5y, mirai_score_5y_gail), function(x){
+          case_when(
+            x <= 1.5 ~ ">0-1.5%",
+            x <= 4 ~ ">1.5-4%",
+            TRUE ~ ">4%"
+          )
+    }))
+  
+  
+}
+
+# Combine output together
+output_combined_1 <- bind_rows(output) |>
+  mutate(weight = 100/n()) |>
+  xtabs(formula = weight ~ mirai_score_5y + gail_score) |>
+  as.data.frame()
+
+output_combined_2 <- bind_rows(output) |>
+  mutate(weight = 100/n()) |>
+  xtabs(formula = weight ~ mirai_score_5y + mirai_score_5y_gail) |>
+  as.data.frame()
+  
+# Plot Sankey Diagram
+sankey_data_1 <- output_combined_1 |>
+  mutate(x = "Gail",
+         next_x = "Mirai",
+         node = case_when(
+            gail_score == ">0-1.5%" ~ 0,
+            gail_score == ">1.5-4%" ~ 1,
+            gail_score == ">4%" ~ 2
+         ),
+         next_node = case_when(
+            mirai_score_5y == ">0-1.5%" ~ 0,
+            mirai_score_5y == ">1.5-4%" ~ 1,
+            mirai_score_5y == ">4%" ~ 2
+         ),
+         value = Freq)
+
+sankey_data_2 <- output_combined_2 |>
+  mutate(x = "Mirai",
+         next_x = "Mirai + Gail",
+         node = case_when(
+            mirai_score_5y == ">0-1.5%" ~ 0,
+            mirai_score_5y == ">1.5-4%" ~ 1,
+            mirai_score_5y == ">4%" ~ 2
+         ),
+         next_node = case_when(
+            mirai_score_5y_gail == ">0-1.5%" ~ 0,
+            mirai_score_5y_gail == ">1.5-4%" ~ 1,
+            mirai_score_5y_gail == ">4%" ~ 2
+         ),
+         value = Freq)
+
+sankey_data_extra_2 <- sankey_data_2 |>
+  mutate(x = "Mirai + Gail",
+         next_x = NA,
+         node = next_node,
+         next_node = NA,
+         value = Freq)
+
+sankey_data <- sankey_data_1 |>
+  bind_rows(sankey_data_2) |>
+  bind_rows(sankey_data_extra_2) |>
+  mutate(x = factor(x, levels = c("Gail", "Mirai","Mirai + Gail")),
+         next_x = factor(next_x, levels = c("Gail", "Mirai","Mirai + Gail")))
+
+node_totals <- sankey_data %>%
+  group_by(x, node) %>%
+  summarise(node_value = sum(value), .groups = "drop") %>%
+  group_by(x) %>%
+  mutate(
+    stage_total = sum(node_value),
+    pct = node_value / stage_total * 100,
+    label = sprintf("%.1f%%", pct)
+  )
+
+sankey_data <- sankey_data %>%
+  left_join(node_totals %>% select(x, node, label), 
+            by = c("x", "node"))
+         
+plot <- ggplot(sankey_data, aes(x = x, 
+               next_x = next_x, 
+               node = node, 
+               next_node = next_node,
+               fill = factor(node, levels = 0:2, labels = c(">0-1.5%", ">1.5-4%", ">4%")),
+               value = value,
+               label = label
+               )) +
+  geom_sankey(flow.alpha = .6,
+              node.color = "gray30") +
+  geom_sankey_label(size = 3.5, color = "black", fill = "white") +
+  theme_sankey(base_size = 15) +
+  scale_fill_manual(
+    values = c(
+      ">0-1.5%" = "#458AFF",
+      ">1.5-4%" = "#00AF2A",
+      ">4%" = "#FC6257"
+    ),
+    breaks = c(">4%", ">1.5-4%", ">0-1.5%")
+  ) +
+  labs(x = NULL,
+       fill = "5-Year Risk")
+
+
+plot
+
+
+ggsave(plot, filename = "../../results/plots_svg/figure_2b.svg", height = 4, width = 8)
+
+```
 
 ### Table 1
 Descriptive table of the study population for the variables included in the GAIL model
@@ -609,9 +995,13 @@ study.data <- scores_and_rf_data$output %>%
     )
     # cumulus_eligible = if_else(cumulus_eligible, "Yes ", "No ")
   ) %>%
-  mutate(Race = factor(Race, levels=c('White', 'Non-white'))) |>
-  filter(time.of.onset > 1)
+  mutate(Race = factor(Race, levels=c('White', 'Non-white')))
 
+data_mammoimages <- read.csv("//rds/data/DGE/DUDGE/Shared/GENERATIONS/CoreData/v20230927/RDSCCMammoImages_v1.csv")
+data_mammoimages <- data_mammoimages %>% filter(SOPInstanceUID %in% eligible_dicom_uids$SOPInstanceUID) %>%
+  group_by(TCode) %>% dplyr::summarize(manuf = first(Manufacturer), manuf_model = first(ManuModelName))
+
+study.data <- study.data %>% left_join(data_mammoimages, by='TCode')
 
             
 ###########
@@ -645,7 +1035,7 @@ table.one <-
     Age1st = ifelse(Age1st != 98, Age1st, NA),
     Race = factor(Race),
     # cumulus_eligible = factor(cumulus_eligible)
-  ) %>% select(cc_status, diagyear, T1, diagage, time.of.onset, N_Biop, AgeMen, Age1st, N_Rels, Race, mirai_score_5y, gail_score, cumulus_reading) |>
+  ) %>% select(cc_status, diagyear, T1, diagage, time.of.onset, manuf_model, N_Biop, AgeMen, Age1st, N_Rels, Race, mirai_score_5y, gail_score, cumulus_reading) |>
   # Removing information on cancer diagnoses for controls
   mutate(
     diagyear = if_else(cc_status == "Control", NA, diagyear),
@@ -671,6 +1061,7 @@ table.one <-
       T1 ~ "Age at mammogram (years), Median (IQR)",
       diagage ~ "Age at BC diagnosis (years), Median (IQR)",
       time.of.onset ~ "Time from mammogram to BC diagnosis (years), Median (IQR)",
+      manuf_model ~ "Mammography device used",
       N_Biop ~ "No. benign breast biopsies",
       AgeMen ~ "Age at menarche (years), Median (IQR)",
       Age1st ~ "Age at first pregnancy (years), Median (IQR)",
@@ -721,7 +1112,7 @@ or_estimations <- scores_and_rf_data$output
 for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
   
   # Create matching variables
-  temp_data <- scores_and_rf_data$output |>
+  temp_data <- or_estimations |>
     filter(!is.na(!!sym(score))) |>
     filter(cc_status == 0)
 
@@ -733,204 +1124,353 @@ for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
   or_estimations[!is.na(or_estimations[[score]]), paste0(score, "_res")] <- predict(model[[score]], or_estimations[!is.na(or_estimations[[score]]),])
   or_estimations[[paste0(score, "_res")]] <- qlogis(or_estimations[[score]]/100) - or_estimations[[paste0(score, "_res")]]
   
-  # Normalise
-  or_estimations[[paste0(score, "_res")]] <- or_estimations[[paste0(score, "_res")]]/sd(or_estimations[[paste0(score, "_res")]], na.rm = T)
-  
   # Calculate missingness indicator variable
   or_estimations[[paste0(score, "_res_missing")]] <- is.na(or_estimations[[paste0(score, "_res")]])
   or_estimations[[paste0(score, "_res")]][is.na(or_estimations[[paste0(score, "_res")]])] <- 0
   
   
 }
-
-# Loop through combinations of the risk scores
-all_risk_scores <- c("mirai_score_5y", "gail_score", "cumulus_reading")
-risk_score_combinations <- lapply(1:length(all_risk_scores), function(m) combn(all_risk_scores, m, simplify = FALSE))
-risk_score_combinations <- unlist(risk_score_combinations, recursive = FALSE)
-
+  
+# Loop though folds
 # Initialise dataframe for results
-table2 <- data.frame(model= character(0), dataset = character(0), MIRAI = character(0), GAIL = character(0), Cumulus = character(0), AUC = character(0))
+table2 <- data.frame(model= character(0), dataset = character(0), MIRAI = numeric(0), MIRAI_SD = numeric(0), GAIL = numeric(0), GAIL_SD = numeric(0), Cumulus = numeric(0), Cumulus_SD = numeric(0), AUC = numeric(0), fold = numeric(0))
 
 # Loop through rows
 i <- 0
-for(comb in risk_score_combinations){
-  
-  # If density not included - run on everyone
-  if(!"cumulus_reading" %in% comb){
-    
-      i <- i + 1
 
+# Parameters of repeated k-fold CV
+k <- 5 # Number of folds
+N <- 10 # Number of bootstrap iterations
+
+# Set seed
+set.seed(987)
+
+# Generate the folds
+cross_val_data <- or_estimations |>
+  slice(sample(1:n())) |>
+  mutate(group = ceiling(k * row_number()/n()))
+
+for(fold in 1:k){
+  
+  # Loop through combinations of the risk scores
+  all_risk_scores <- c("mirai_score_5y", "gail_score", "cumulus_reading")
+  risk_score_combinations <- lapply(1:length(all_risk_scores), function(m) combn(all_risk_scores, m, simplify = FALSE))
+  risk_score_combinations <- unlist(risk_score_combinations, recursive = FALSE)
+  
+  # Normalize train/test folds separately
+  for(score in c("gail_score_res", "mirai_score_5y_res", "cumulus_reading_res")){
+    train_sd <- cross_val_data |> filter(group != fold) |> dplyr::pull(paste0(score)) |> sd(na.rm = TRUE)
+    cross_val_data <- cross_val_data |>
+      mutate(
+        !!sym(score) := case_when(
+          group != fold ~ !!sym(score) / train_sd,
+          group == fold ~ !!sym(score) / train_sd
+        )
+      )
+  }
+  
+  model <- 0
+  for(comb in risk_score_combinations){
+    
+    # If density not included - run on everyone
+    if(!"cumulus_reading" %in% comb){
+      
+      i <- i + 1
+      model <- model + 1
+      
+      # Write and run glm with cc_status as outcome and residuals + missingness indicators as predictors
+      formula_glm <- paste0("cc_status ~ ", paste0(comb, "_res", collapse =  " + "))
+      test <- glm(as.formula(formula_glm), data = cross_val_data |> filter(group != fold), family = 'binomial')
+      
+      # Get case/control split for table
+      cc_split <- paste0(cross_val_data |> filter(cc_status == 1) |> nrow(), "/", cross_val_data |> filter(cc_status == 0) |> nrow())
+      
+      # Grab MIRAI coef
+      if("mirai_score_5y" %in% comb){
+        
+        coef <- test$coefficients[names(test$coefficients) == "mirai_score_5y_res"]
+        se <- summary(test)$coefficients[rownames(summary(test)$coefficients) == "mirai_score_5y_res",2]
+
+        mirai_or <- coef
+        mirai_sd <- se
+        
+      } else {
+        
+        mirai_or <- NA
+        mirai_sd <- NA
+        
+      }
+      
+      # Grab GAIL coef
+      if("gail_score" %in% comb){
+        
+        coef <- test$coefficients[names(test$coefficients) == "gail_score_res"]
+        se <- summary(test)$coefficients[rownames(summary(test)$coefficients) == "gail_score_res",2]
+        
+        gail_or <- coef
+        gail_sd <- se
+        
+      } else {
+        
+        gail_or <- NA
+        gail_sd <- NA
+        
+      }
+      
+      # Calculate AUC
+      auc <- cross_val_data |>
+        filter(group == fold) |>
+        mutate(fitted.values = predict(test, newdata = pick(everything()), type = "response")) |>
+        roc(cc_status, fitted.values, direction = "<") |>
+        auc()
+      
+      # Write row to the dataframe
+      new_row <- c(paste0("Model ", model), cc_split, mirai_or, mirai_sd, gail_or, gail_sd, NA, NA, auc, fold)
+      
+      table2[nrow(table2)+1,] <- new_row
+      
+    }
+    
+    i <- i + 1
+    model <- model + 1
+    
     # Write and run glm with cc_status as outcome and residuals + missingness indicators as predictors
     formula_glm <- paste0("cc_status ~ ", paste0(comb, "_res", collapse =  " + "))
-    test <- glm(as.formula(formula_glm), data = or_estimations, family = 'binomial')
+    test <- glm(as.formula(formula_glm), data = cross_val_data |> filter(!is.na(cumulus_reading))|> filter(group != fold), family = 'binomial')
     
     # Get case/control split for table
-    cc_split <- paste0(or_estimations |> filter(cc_status == 1) |> nrow(), "/", or_estimations |> filter(cc_status == 0) |> nrow())
+    cc_split <- paste0(cross_val_data |> filter(!is.na(cumulus_reading)) |> filter(cc_status == 1) |> nrow(), "/", cross_val_data |> filter(!is.na(cumulus_reading)) |> filter(cc_status == 0) |> nrow())
     
     # Grab MIRAI coef
     if("mirai_score_5y" %in% comb){
       
-      coef <- exp(test$coefficients[names(test$coefficients) == "mirai_score_5y_res"])
+      coef <- test$coefficients[names(test$coefficients) == "mirai_score_5y_res"]
+      se <- summary(test)$coefficients[rownames(summary(test)$coefficients) == "mirai_score_5y_res",2]
       
-      CI <- unname(exp(confint(test)[rownames(confint(test)) == "mirai_score_5y_res",]))
-      
-      mirai_or <- paste0(sprintf("%.2f", coef), " (", sprintf("%.2f",CI[1]), ", ", sprintf("%.2f", CI[2]), ")")
-      
-    } else {
-      
-      mirai_or <- "-"
-      
-    }
-    
-    # Grab Transpara coef
-    if("transpara_score_5y" %in% comb){
-      
-      coef <- exp(test$coefficients[names(test$coefficients) == "transpara_score_5y_res"])
-      
-      CI <- unname(exp(confint(test)[rownames(confint(test)) == "transpara_score_5y_res",]))
-      
-      transpara_or <- paste0(sprintf("%.2f", coef), " (", sprintf("%.2f",CI[1]), ", ", sprintf("%.2f", CI[2]), ")")
+      mirai_or <- coef
+      mirai_sd <- se
       
     } else {
       
-      transpara_or <- "-"
+      mirai_or <- NA
+      mirai_sd <- NA
       
     }
     
     # Grab GAIL coef
     if("gail_score" %in% comb){
       
-      coef <- exp(test$coefficients[names(test$coefficients) == "gail_score_res"])
+      coef <- test$coefficients[names(test$coefficients) == "gail_score_res"]
+      se <- summary(test)$coefficients[rownames(summary(test)$coefficients) == "gail_score_res",2]
       
-      CI <- unname(exp(confint(test)[rownames(confint(test)) == "gail_score_res",]))
-      
-      gail_or <- paste0(sprintf("%.2f", coef), " (", sprintf("%.2f",CI[1]), ", ", sprintf("%.2f", CI[2]), ")")
+      gail_or <- coef
+      gail_sd <- se
       
     } else {
       
-      gail_or <- "-"
+      gail_or <- NA
+      gail_sd <- NA
       
     }
-  
-    # Grab AUC
-  roc <- roc(or_estimations$cc_status, test$fitted.values)
-  auc <- auc(roc)
-  auc.ci <- unname(ci.auc(or_estimations$cc_status, test$fitted.values))
-  
-  auc <- paste0(sprintf("%.2f", auc), " (", sprintf("%.2f",auc.ci[1]), ", ", sprintf("%.2f", auc.ci[3]), ")")
-  
-  # Add to ROC data
-  if(i == 1){
-    roc_data <- data.frame(sensitivity = roc$sensitivities, specificity = roc$specificities, score = paste(comb, collapse=' + '))
-  } else {
-    roc_data <- bind_rows(roc_data, data.frame(sensitivity = roc$sensitivities, specificity = roc$specificities, score = paste(comb, collapse=' + ')))
-  }
-  
-  # Write row to the dataframe
-  table2[nrow(table2)+1,] <- c(paste0("Model ", i), cc_split, mirai_or, gail_or, "-", auc)
+    
+    # Grab Cumulus coef
+    if("cumulus_reading" %in% comb){
+      
+      coef <- test$coefficients[names(test$coefficients) == "cumulus_reading_res"]
+      se <- summary(test)$coefficients[rownames(summary(test)$coefficients) == "cumulus_reading_res",2]
+      
+      cumulus_or <- coef
+      cumulus_sd <- se
+      
+    } else {
+      
+      cumulus_or <- NA
+      cumulus_sd <- NA
+      
+    }
+    
+    # Calculate AUC
+    auc <- cross_val_data |>
+      filter(group == fold) |>
+      filter(!is.na(cumulus_reading)) |>
+      mutate(fitted.values = predict(test, newdata = pick(everything()), type = "response")) |>
+      roc(cc_status, fitted.values, direction = "<") |>
+      auc()
+
+    # Write row to the dataframe
+    new_row <- c(paste0("Model ", model), cc_split, mirai_or, mirai_sd, gail_or, gail_sd, cumulus_or, cumulus_sd, auc, fold)
+    
+    table2[nrow(table2)+1,] <- new_row
+    
     
   }
   
-    i <- i + 1
+}
   
-  # Write and run glm with cc_status as outcome and residuals + missingness indicators as predictors
-  formula_glm <- paste0("cc_status ~ ", paste0(comb, "_res", collapse =  " + "))
-  test <- glm(as.formula(formula_glm), data = or_estimations |> filter(!is.na(cumulus_reading)), family = 'binomial')
+# Aggregate data
+table2_agg <- table2 |>
+  mutate(across(c(MIRAI, MIRAI_SD, GAIL, GAIL_SD, Cumulus, Cumulus_SD, AUC), as.numeric)) |>
+  group_by(model, dataset) |>
+  mutate(
+
+    MIRAI_wt = 1/MIRAI_SD^2,
+    GAIL_wt = 1/GAIL_SD^2,
+    Cumulus_wt = 1/Cumulus_SD^2
+
+  ) |>
+  summarise(
+    
+    MIRAI = exp(sum(MIRAI_wt * MIRAI)/sum(MIRAI_wt)),
+    GAIL = exp(sum(GAIL_wt * GAIL)/sum(GAIL_wt)),
+    Cumulus = exp(sum(Cumulus_wt * Cumulus)/sum(Cumulus_wt)),
+    
+    MIRAI_lci = exp(log(MIRAI) - 1.96*sqrt(1/sum(MIRAI_wt))),
+    MIRAI_uci = exp(log(MIRAI) + 1.96*sqrt(1/sum(MIRAI_wt))),
+    
+    GAIL_lci = exp(log(GAIL) - 1.96*sqrt(1/sum(GAIL_wt))),
+    GAIL_uci = exp(log(GAIL) + 1.96*sqrt(1/sum(GAIL_wt))),
+    
+    Cumulus_lci = exp(log(Cumulus) - 1.96*sqrt(1/sum(Cumulus_wt))),
+    Cumulus_uci = exp(log(Cumulus) + 1.96*sqrt(1/sum(Cumulus_wt))),
+    
+    AUC = mean(AUC),
+    
+    .groups = "drop"
+    
+  ) |>
+  mutate(
+    
+    MIRAI = paste0(sprintf("%.2f", MIRAI), " (", sprintf("%.2f", MIRAI_lci), ", ", sprintf("%.2f", MIRAI_uci), ")"),
+    GAIL = paste0(sprintf("%.2f", GAIL), " (", sprintf("%.2f", GAIL_lci), ", ", sprintf("%.2f", GAIL_uci), ")"),
+    Cumulus = paste0(sprintf("%.2f", Cumulus), " (", sprintf("%.2f", Cumulus_lci), ", ", sprintf("%.2f", Cumulus_uci), ")"),
+    
+    AUC = sprintf("%.2f", AUC)
+    
+  ) |>
+  select(model, dataset, MIRAI, GAIL, Cumulus, AUC)
+
+# Calculate AUC confidence intervals via bootstrapping
+# Loop though folds
+# Initialise dataframe for results
+table2_boot <- data.frame(model= character(0), AUC = numeric(0), fold = numeric(0), iter = numeric(0))
+
+# Loop through rows
+i <- 0
+
+for(r in 1:N){
   
-   # Get case/control split for table
-    cc_split <- paste0(or_estimations |> filter(!is.na(cumulus_reading)) |> filter(cc_status == 1) |> nrow(), "/", or_estimations |> filter(!is.na(cumulus_reading)) |> filter(cc_status == 0) |> nrow())
+  if(r %% 10 == 0) print(r)
   
-  # Grab MIRAI coef
-  if("mirai_score_5y" %in% comb){
+  # Set seed
+  set.seed(987 + r)
+  
+  # Generate the folds
+  cross_val_data <- or_estimations |>
+    slice(sample(1:n(), replace = T)) |>
+    mutate(group = ceiling(k * row_number()/n()))
+  
+  for(fold in 1:k){
+  
+    # Loop through combinations of the risk scores
+    all_risk_scores <- c("mirai_score_5y", "gail_score", "cumulus_reading")
+    risk_score_combinations <- lapply(1:length(all_risk_scores), function(m) combn(all_risk_scores, m, simplify = FALSE))
+    risk_score_combinations <- unlist(risk_score_combinations, recursive = FALSE)
     
-    coef <- exp(test$coefficients[names(test$coefficients) == "mirai_score_5y_res"])
+    # Normalize train/test folds separately
+    for(score in c("gail_score_res", "mirai_score_5y_res", "cumulus_reading_res")){
+      train_sd <- cross_val_data |> filter(group != fold) |> dplyr::pull(paste0(score)) |> sd(na.rm = TRUE)
+      cross_val_data <- cross_val_data |>
+        mutate(
+          !!sym(score) := case_when(
+            group != fold ~ !!sym(score) / train_sd,
+            group == fold ~ !!sym(score) / train_sd
+          )
+        )
+    }
     
-    CI <- unname(exp(confint(test)[rownames(confint(test)) == "mirai_score_5y_res",]))
-    
-    mirai_or <- paste0(sprintf("%.2f", coef), " (", sprintf("%.2f",CI[1]), ", ", sprintf("%.2f", CI[2]), ")")
-    
-  } else {
-    
-    mirai_or <- "-"
+    model <- 0
+    for(comb in risk_score_combinations){
+      
+      # If density not included - run on everyone
+      if(!"cumulus_reading" %in% comb){
+        
+        i <- i + 1
+        model <- model + 1
+        
+        # Write and run glm with cc_status as outcome and residuals + missingness indicators as predictors
+        formula_glm <- paste0("cc_status ~ ", paste0(comb, "_res", collapse =  " + "))
+        test <- glm(as.formula(formula_glm), data = cross_val_data |> filter(group != fold), family = 'binomial')
+        
+        # Calculate AUC
+        auc <- cross_val_data |>
+          filter(group == fold) |>
+          mutate(fitted.values = predict(test, newdata = pick(everything()), type = "response")) |>
+          roc(cc_status, fitted.values, direction = "<") |>
+          auc()
+        
+        # Write row to the dataframe
+        new_row <- c(paste0("Model ", model), auc, fold, r)
+        
+        table2_boot[nrow(table2_boot)+1,] <- new_row
+        
+      }
+      
+      i <- i + 1
+      model <- model + 1
+      
+      # Write and run glm with cc_status as outcome and residuals + missingness indicators as predictors
+      formula_glm <- paste0("cc_status ~ ", paste0(comb, "_res", collapse =  " + "))
+      test <- glm(as.formula(formula_glm), data = cross_val_data |> filter(!is.na(cumulus_reading))|> filter(group != fold), family = 'binomial')
+      
+      # Calculate AUC
+      auc <- cross_val_data |>
+        filter(group == fold) |>
+        filter(!is.na(cumulus_reading)) |>
+        mutate(fitted.values = predict(test, newdata = pick(everything()), type = "response")) |>
+        roc(cc_status, fitted.values, direction = "<") |>
+        auc()
+  
+      # Write row to the dataframe
+      new_row <- c(paste0("Model ", model), auc, fold, r)
+      
+      table2_boot[nrow(table2_boot)+1,] <- new_row
+      
+      
+    }
     
   }
-  
-  # Grab Transpara coef
-  if("transpara_score_5y" %in% comb){
-    
-    coef <- exp(test$coefficients[names(test$coefficients) == "transpara_score_5y_res"])
-    
-    CI <- unname(exp(confint(test)[rownames(confint(test)) == "transpara_score_5y_res",]))
-    
-    transpara_or <- paste0(sprintf("%.2f", coef), " (", sprintf("%.2f",CI[1]), ", ", sprintf("%.2f", CI[2]), ")")
-    
-  } else {
-    
-    transpara_or <- "-"
-    
-  }
-  
-  # Grab GAIL coef
-  if("gail_score" %in% comb){
-    
-    coef <- exp(test$coefficients[names(test$coefficients) == "gail_score_res"])
-    
-    CI <- unname(exp(confint(test)[rownames(confint(test)) == "gail_score_res",]))
-    
-    gail_or <- paste0(sprintf("%.2f", coef), " (", sprintf("%.2f",CI[1]), ", ", sprintf("%.2f", CI[2]), ")")
-    
-  } else {
-    
-    gail_or <- "-"
-    
-  }
-  
-  # Grab Cumulus coef
-  if("cumulus_reading" %in% comb){
-    
-    coef <- exp(test$coefficients[names(test$coefficients) == "cumulus_reading_res"])
-    
-    CI <- unname(exp(confint(test)[rownames(confint(test)) == "cumulus_reading_res",]))
-    
-    cumulus_or <- paste0(sprintf("%.2f", coef), " (", sprintf("%.2f",CI[1]), ", ", sprintf("%.2f", CI[2]), ")")
-    
-  } else {
-    
-    cumulus_or <- "-"
-    
-  }
-    
-  # Grab AUC
-  roc <- roc(or_estimations$cc_status[!is.na(or_estimations$cumulus_reading)], test$fitted.values)
-  auc <- auc(roc)
-  auc.ci <- unname(ci.auc(or_estimations$cc_status[!is.na(or_estimations$cumulus_reading)], test$fitted.values))
-  
-  auc <- paste0(sprintf("%.2f", auc), " (", sprintf("%.2f",auc.ci[1]), ", ", sprintf("%.2f", auc.ci[3]), ")")
-  
-  # Add to ROC data
-  if(i == 1){
-    roc_data <- data.frame(sensitivity = roc$sensitivities, specificity = roc$specificities, score = paste(comb, collapse=' + '))
-  } else {
-    roc_data <- bind_rows(roc_data, data.frame(sensitivity = roc$sensitivities, specificity = roc$specificities, score = paste(comb, collapse=' + ')))
-  }
-  
-  # Write row to the dataframe
-  table2[nrow(table2)+1,] <- c(paste0("Model ", i), cc_split, mirai_or, gail_or, cumulus_or, auc)
-  
   
 }
 
-# Change to gt
-table2_gt <- table2 |>
+# Get confidence interval from bootstrap
+table2_boot_ci <- table2_boot |>
+  group_by(model, iter) |>
+  summarise(auc = mean(as.numeric(AUC)),
+            .groups = "drop") |>
+  group_by(model) |>
+  summarise(
+    auc_lci = quantile(auc, 0.025),
+    auc_uci = quantile(auc, 0.975),
+    auc_ci = paste0("(", sprintf("%.2f", auc_lci), ", ", sprintf("%.2f", auc_uci), ")"),
+    .groups = "drop"
+  ) |>
+  select(model, auc_ci)
+
+# Combine confidence intervals
+table2_clean <- table2_agg |>
+  merge(table2_boot_ci, by = "model") |>
+  mutate(auc = paste(AUC, auc_ci)) |>
+  select(Model = model, `Cases/Controls` = dataset, Mirai = MIRAI, Gail = GAIL, PD = Cumulus, `AUC (95% CI)` = auc) |>
+  mutate(across(c(Mirai, Gail, PD), \(x) replace_values(x, "NA (NA, NA)" ~ "-"))) |>
   gt()
 
-gtsave(table2_gt, "../../results/tables/table_2.docx")
+gtsave(table2_clean, "../../results/tables/table_2.docx")
 
 ```
 
 ```{r}
 
-table2_gt
+table2_clean
 
 ```
 
@@ -1177,6 +1717,314 @@ gtsave(supp_table3_gt, "../../results/tables/supp_table_3.docx")
 
 ```
 
+## Secondary Analysis
+
+### Functions
+
+#### C-Index Generation
+```{r c_index_func, include=F}
+
+#' c_index_generation
+#' 
+#' Function to generate C-index and generate a pretty estimate for presentation
+#' 
+#' @param data data.frame that contains risk score column as well as time_to_failure (minimum of time to event and time to end of follow-up), and case (TRUE for diagnosed within follow-up, FALSE otherwise)
+#' @param variables list of variable names to calculate the C-index for
+#' 
+#' @returns object generated by survival::concordance function, with the addition of a pretty_estimate element
+#' 
+c_index_generation <- function(data, variables = list()){
+  
+  # Calculate C-index
+  fit <- data |>
+    mutate(
+      time_to_failure = pmin(time_to_diagnosis, time_to_end_fup),
+      delta = as.integer(case)
+    ) |> 
+    concordance(
+      object = as.formula(paste0("Surv(time_to_failure, delta) ~", paste(unlist(variables), sep = "+"))),
+      reverse = TRUE
+    )
+  
+  # Create pretty estimate
+  fit$pretty_estimate = paste0(
+    sprintf("%.3f", fit$concordance),
+    " (",
+    sprintf("%.3f", fit$concordance - 1.96*sqrt(fit$var)),
+    "-",
+    sprintf("%.3f", fit$concordance + 1.96*sqrt(fit$var)),
+    ")"
+  )
+  
+  return(fit)
+  
+}
+
+```
+
+#### E/O Calculation
+```{r, e_o_func, include = F}
+
+#' e_o_calculation
+#' 
+#' Function that calculates overall expected over observed number of cases for a score based on a given prediction horizon
+#' 
+#' @param data data.frame that contains the score of interest as well as case (TRUE for diagnosed within follow-up, FALSE otherwise), and time_to_end_fup (total follow-up time of participant)
+#' @param score name of the variable of interest to calculate E/O for
+#' @param pred_hor prediction horizon of the chosen score in years
+#' 
+#' @return Overall expected/observed number of cases, accounting for differing follow-up times
+#' 
+e_o_calculation <- function(data, score, pred_hor){
+  
+  observed <- sum(data$case)
+  expected <- sum(data[[score]])
+  total_py <- sum(pmin(data$time_to_end_fup, pred_hor))
+  total_prediction_time <- pred_hor*nrow(data)
+  
+  E_O <- (expected/total_prediction_time)/(observed/total_py)
+  
+  # Calculating confidence interval using Poisson CI formula
+  O_lci <- 0.5*qchisq(0.025, df = 2*observed)
+  O_uci <- 0.5*qchisq(0.975, df = 2*observed + 2)
+  
+  E_O_lci <- (expected/total_prediction_time)/(O_uci/total_py)
+  E_O_uci <- (expected/total_prediction_time)/(O_lci/total_py)
+  
+  E_O <- list(
+    observed = observed,
+    expected = expected,
+    total_py = total_py,
+    total_prediction_time = total_prediction_time,
+    estimate = E_O,
+    lci = E_O_lci,
+    uci = E_O_uci,
+    pretty_estimate = paste0(sprintf("%.3f", E_O), " (", sprintf("%.3f", E_O_lci), ", ", sprintf("%.3f", E_O_uci), ")")
+  )
+  
+  return(E_O)
+  
+}
+
+```
+
+#### Calibration Plot Generation
+```{r}
+
+calibration_plot <- function(data, varname, breaks, pred_hor){
+  
+  # Get breaks
+  if(is.list(breaks)){
+    breaks <- unlist(breaks)
+  } else {
+    breaks <- quantile(data[[varname]], probs = seq(0, 1, 1/breaks))
+  }
+  
+  # Clean data for plot
+  data <- data |>
+    mutate(
+      !!sym(paste0(varname, "_cat")) := cut(!!sym(score), breaks = breaks)
+    )
+  
+  # For each category, get data
+  plot_data <- lapply(unique(data[[paste0(varname, "_cat")]]), function(x){
+    
+    # Filter to category
+    data <- data |>
+      filter(!!sym(paste0(varname, "_cat")) == x)
+    
+    # Get E/O estimates
+    e_o_estimates <- e_o_calculation(data = data, score = varname, pred_hor = pred_hor)
+    
+    # Calculate data.frame
+    data <- data.frame(
+      expected = pred_hor * e_o_estimates$expected/e_o_estimates$total_prediction_time,
+      observed =  pred_hor * e_o_estimates$expected/(e_o_estimates$estimate * e_o_estimates$total_prediction_time),
+      observed_lci =  pred_hor * e_o_estimates$expected/(e_o_estimates$uci* e_o_estimates$total_prediction_time),
+      observed_uci =  pred_hor * e_o_estimates$expected/(e_o_estimates$lci*e_o_estimates$total_prediction_time)
+    )
+    
+    # Return dataframe
+    return(data)
+    
+  })
+  
+  # Combine plot_data and make plot
+  plot_data <- bind_rows(plot_data)
+  
+  padding = 1.15
+  est_range <- range(c(plot_data$observed, plot_data$expected), na.rm = TRUE)
+  est_span  <- diff(est_range)
+  if (est_span == 0) est_span <- est_range[1]  # guard against a single unique value
+  
+  y_limits <- c(
+    est_range[1] - est_span * (padding - 1),
+    est_range[2] + est_span * (padding - 1)
+  )
+  y_limits[1] <- max(y_limits[1], 0)
+  
+  # Flag which end(s) of each CI fall outside the frame
+  plot_data <- plot_data |>
+    mutate(
+      row_id = row_number(),
+      clip_upper = observed_uci > y_limits[2],
+      clip_lower = observed_lci < y_limits[1],
+      y_start = pmax(observed_lci, y_limits[1]),
+      y_end   = pmin(observed_uci, y_limits[2])
+    )
+  
+  # Base plot: points + reference line + frame
+  plot <- ggplot(plot_data, aes(x = expected, y = observed)) +
+    geom_abline(slope = 1, intercept = 0, colour = "black", linetype = "dashed") +
+    geom_point(colour = "red") +
+    coord_equal(ylim = y_limits, xlim = y_limits) +
+    theme_minimal() +
+    geom_rect(ymin = -Inf, ymax = Inf, xmin = -Inf, xmax = Inf, alpha = 0, colour = "black") +
+    xlab(paste0("Expected Cases per ", pred_hor, " years")) +
+    ylab(paste0("Observed Cases per ", pred_hor, " years")) 
+  
+  arrow_spec <- arrow(type = "closed", length = unit(0.08, "inches"))
+  cap_width = 0.04 * (y_limits[2] - y_limits[1])
+  
+  # 1. Intervals fully inside the frame: normal errorbar with flat caps
+  neither <- plot_data |> filter(!clip_upper & !clip_lower)
+  if (nrow(neither) > 0) {
+    plot <- plot + geom_errorbar(
+      data = neither,
+      aes(ymin = y_start, ymax = y_end),
+      width = cap_width, colour = "red"
+    )
+  }
+  
+  # 2. Upper end clipped only: segment with arrowhead at the top
+  upper_only <- plot_data |> filter(clip_upper & !clip_lower)
+  if (nrow(upper_only) > 0) {
+    plot <- plot +
+      geom_segment(
+        data = upper_only,
+        aes(x = expected, xend = expected, y = y_start, yend = y_end),
+        colour = "red", arrow = arrow_spec, lineend = "round"
+      ) +
+      geom_segment(
+        data = upper_only,
+        aes(x = expected - cap_width/2, xend = expected + cap_width/2,
+            y = y_start, yend = y_start),
+        colour = "red"
+      )
+  }
+  
+  # 3. Lower end clipped only: segment with arrowhead at the bottom
+  lower_only <- plot_data |> filter(clip_lower & !clip_upper)
+  if (nrow(lower_only) > 0) {
+    plot <- plot +
+      geom_segment(
+        data = lower_only,
+        aes(x = expected, xend = expected, y = y_end, yend = y_start),
+        colour = "red", arrow = arrow_spec, lineend = "round"
+      ) +
+      geom_segment(
+        data = lower_only,
+        aes(x = expected - cap_width/2, xend = expected + cap_width/2,
+            y = y_end, yend = y_end),
+        colour = "red"
+      )
+  }
+  
+  # 4. Both ends clipped: segment with arrowheads at both ends
+  both <- plot_data |> filter(clip_upper & clip_lower)
+  if (nrow(both) > 0) {
+    plot <- plot + geom_segment(
+      data = both,
+      aes(x = expected, xend = expected, y = y_start, yend = y_end),
+      colour = "red", arrow = arrow(type = "closed", length = unit(0.08, "inches"), ends = "both"),
+      lineend = "round"
+    )
+  }
+  
+  return(plot)
+    
+}
+
+```
+
+### Population definition
+```{r}
+
+# Read in population
+df_secondary <- read.csv("//rds/data/DGE/DUDGE/INCANEPI/Generations/Projects/mammo_risk_prediction/projects/prospective/populations/20260826/1c_baseline_analysis/study_population_mirai.csv") |>
+  mutate(AcquisitionDate = as.Date(AcquisitionDate, format = "%Y-%m-%d"))
+
+# Read in Mirai risk scores
+scores_mirai <- read.csv("//rds/data/DGE/DUDGE/INCANEPI/Generations/Projects/mammo_risk_prediction/data/prospective/backlog_2026_03/mirai/results/scores.csv") |>
+  mutate(TCode = gsub(pattern = "\\_.*", replacement = "", accession))
+
+# Create analytical dataset
+df_secondary_analysis <- create_analytical_dataset(df_secondary, years = NA, cancer = "all_breast", fup_start_date = "AcquisitionDate")
+
+# Get GAIL risk scores
+scores_gail <- GAIL_score_generation(df_secondary_analysis, years = 5)
+
+# Add Mirai and Gail scores to analytical dataset
+df_secondary_final <- df_secondary_analysis |>
+  merge(scores_mirai, by.x = c("TCode", "fupca_start_F", "Pseudo_StudyInstanceUID"), by.y = c("TCode", "acquisition_date", "study_id")) |>
+  merge(scores_gail$scores, by = "TCode") |>
+  mutate(
+    
+    gail_score = gail_score/100,
+    case = (time.of.onset < pmin(study.exit.age - study.entry.age, 5)),
+    time_to_diagnosis = time.of.onset,
+    time_to_end_fup = study.exit.age - study.entry.age
+    
+  )
+
+```
+
+### Summary Table
+```{r}
+
+# Initialise output
+table_list <- list()
+
+# Initialise output
+plots <- list()
+
+# Overall
+for(score in c("X5Y_risk", "gail_score")){
+
+  c_index <- c_index_generation(df_secondary_final, variables = list(score))$pretty_estimate
+    
+  e_o_overall <- e_o_calculation(df_secondary_final, score = score, pred_hor = 5)$pretty_estimate
+    
+  table_list[[length(table_list)+1]] <- data.frame(
+    score = score,
+    c_index = c_index,
+    e_o_overall = e_o_overall
+  )
+  
+  # Get plot title
+  plot_title <- if_else(score == "X5Y_risk", "Mirai", "Gail")
+   
+  # Generate plot
+  plots[[score]] <- calibration_plot(df_secondary_final, varname = score, breaks = 5, pred_hor = 5) +
+    labs(
+      title = plot_title
+    )
+
+}
+
+bind_rows(table_list) |>
+  mutate(score = if_else(score == "X5Y_risk", "Mirai", "Gail")) |>
+  select(Score = score, `C-Index` = c_index, `E/O Overall` = e_o_overall) |>
+  knitr::kable()
+
+for(plot in plots){
+  print(plot)
+}
+
+```
+
+### Calibration Plots
+
 ## Debugging
 
 ### Full vs Subset
@@ -1277,689 +2125,36 @@ summary(lm(mirai_residuals ~ cc_status*manuf_model, data = scores_and_rf_data$ou
 
 ## Additional Analysis
 
-### Cross-validation
+### Analysis by year of mammogram
 ```{r}
 
-model <- list()
-or_estimations <- scores_and_rf_data$output
-
-for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
-  
-  # Create matching variables
-  temp_data <- or_estimations |>
-    filter(!is.na(!!sym(score))) |>
-    filter(cc_status == 0)
-
-  # Fit model calculating score using matching variables
-  # Fitting model on controls that have the score measured
-  model[[score]] <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age + match.ethnicity")), data = temp_data)
-  
-  # Predict on whole dataset and calculate residuals
-  or_estimations[!is.na(or_estimations[[score]]), paste0(score, "_res")] <- predict(model[[score]], or_estimations[!is.na(or_estimations[[score]]),])
-  or_estimations[[paste0(score, "_res")]] <- qlogis(or_estimations[[score]]/100) - or_estimations[[paste0(score, "_res")]]
-  
-  # Calculate missingness indicator variable
-  or_estimations[[paste0(score, "_res_missing")]] <- is.na(or_estimations[[paste0(score, "_res")]])
-  or_estimations[[paste0(score, "_res")]][is.na(or_estimations[[paste0(score, "_res")]])] <- 0
-  
-  
-}
-  
-# Loop though folds
-# Initialise dataframe for results
-table2 <- data.frame(model= character(0), dataset = character(0), MIRAI = numeric(0), MIRAI_SD = numeric(0), GAIL = numeric(0), GAIL_SD = numeric(0), Cumulus = numeric(0), Cumulus_SD = numeric(0), AUC = numeric(0), AUC_SD = numeric(0), fold = numeric(0), repetition = numeric(0))
-
-# Loop through rows
-i <- 0
-
-# Parameters of repeated k-fold CV
-r <- 100 # Number of repeats
-k <- 5 # Number of folds
-
-for(rpt in 1:r) {
-  
-  # Bootstrap resample data
-  bootstrap_sample <- or_estimations[sample(1:nrow(or_estimations), size = nrow(or_estimations), replace = T),]
-  
-  # Set seed
-  set.seed(345 + rpt)
-  
-  # Generate the folds
-  cross_val_data <- bootstrap_sample |>
-    slice(sample(1:n())) |>
-    mutate(group = ceiling(k * row_number()/n()))
-  
-  for(fold in 1:k){
-    # Loop through combinations of the risk scores
-    all_risk_scores <- c("mirai_score_5y", "gail_score", "cumulus_reading")
-    risk_score_combinations <- lapply(1:length(all_risk_scores), function(m) combn(all_risk_scores, m, simplify = FALSE))
-    risk_score_combinations <- unlist(risk_score_combinations, recursive = FALSE)
-    
-    # Normalize train/test folds separately
-    for(score in c("gail_score_res", "mirai_score_5y_res", "cumulus_reading_res")){
-      train_sd <- cross_val_data |> filter(group != fold) |> dplyr::pull(paste0(score)) |> sd(na.rm = TRUE)
-      test_sd <- cross_val_data |> filter(group == fold) |> dplyr::pull(paste0(score)) |> sd(na.rm = TRUE)
-      cross_val_data <- cross_val_data |>
-        mutate(
-          !!sym(score) := case_when(
-            group != fold ~ !!sym(score) / train_sd,
-            group == fold ~ !!sym(score) / test_sd
-          )
-        )
-    }
-    
-    for(comb in risk_score_combinations){
-      
-      # If density not included - run on everyone
-      if(!"cumulus_reading" %in% comb){
-        
-        i <- i + 1
-        
-        # Write and run glm with cc_status as outcome and residuals + missingness indicators as predictors
-        formula_glm <- paste0("cc_status ~ ", paste0(comb, "_res", collapse =  " + "))
-        test <- glm(as.formula(formula_glm), data = cross_val_data |> filter(group != fold), family = 'binomial')
-        
-        # Get case/control split for table
-        cc_split <- paste0(cross_val_data |> filter(cc_status == 1) |> nrow(), "/", cross_val_data |> filter(cc_status == 0) |> nrow())
-        
-        # Grab MIRAI coef
-        if("mirai_score_5y" %in% comb){
-          
-          coef <- exp(test$coefficients[names(test$coefficients) == "mirai_score_5y_res"])
-          
-          CI <- suppressMessages(unname(exp(confint(test)[rownames(confint(test)) == "mirai_score_5y_res",])))
-          
-          mirai_or <- coef
-          mirai_sd <- (CI[2]-CI[1])/(2*qnorm(0.975))
-          
-        } else {
-          
-          mirai_or <- NA
-          mirai_sd <- NA
-          
-        }
-        
-        # Grab GAIL coef
-        if("gail_score" %in% comb){
-          
-          coef <- exp(test$coefficients[names(test$coefficients) == "gail_score_res"])
-          
-          CI <- suppressMessages(unname(exp(confint(test)[rownames(confint(test)) == "gail_score_res",])))
-          
-          gail_or <- coef
-          gail_sd <- (CI[2]-CI[1])/(2*qnorm(0.975))
-          
-        } else {
-          
-          gail_or <- NA
-          gail_sd <- NA
-          
-        }
-        
-        # Grab AUC from testing data
-        test_data <- cross_val_data |>
-          filter(group == fold) |>
-          mutate(fitted.values = predict(test, newdata = cur_data(), type = "response"))
-        
-        roc <- suppressMessages(roc(test_data$cc_status, test_data$fitted.values, direction = "<"))
-        auc <- auc(roc)
-        # auc.ci <- unname(ci.auc(test_data$cc_status, test_data$fitted.values))
-        # 
-        # auc_sd <- (auc.ci[3]-auc.ci[1])/(2*qnorm(0.975))
-        auc_sd <- NA
-        
-        # Add to ROC data
-        if(i == 1){
-          roc_data <- data.frame(sensitivity = roc$sensitivities, specificity = roc$specificities, score = paste(comb, collapse=' + '))
-        } else {
-          roc_data <- bind_rows(roc_data, data.frame(sensitivity = roc$sensitivities, specificity = roc$specificities, score = paste(comb, collapse=' + ')))
-        }
-        
-        # Write row to the dataframe
-        new_row <- c(paste0("Model ", i), cc_split, mirai_or, mirai_sd, gail_or, gail_sd, NA, NA, auc, auc_sd, fold, rpt)
-        
-        table2[nrow(table2)+1,] <- new_row
-        
-      }
-      
-      i <- i + 1
-      
-      # Write and run glm with cc_status as outcome and residuals + missingness indicators as predictors
-      formula_glm <- paste0("cc_status ~ ", paste0(comb, "_res", collapse =  " + "))
-      test <- glm(as.formula(formula_glm), data = cross_val_data |> filter(!is.na(cumulus_reading))|> filter(group != fold), family = 'binomial')
-      
-      # Get case/control split for table
-      cc_split <- paste0(cross_val_data |> filter(!is.na(cumulus_reading)) |> filter(cc_status == 1) |> nrow(), "/", cross_val_data |> filter(!is.na(cumulus_reading)) |> filter(cc_status == 0) |> nrow())
-      
-      # Grab MIRAI coef
-      if("mirai_score_5y" %in% comb){
-        
-        coef <- exp(test$coefficients[names(test$coefficients) == "mirai_score_5y_res"])
-        
-        CI <- suppressMessages(unname(exp(confint(test)[rownames(confint(test)) == "mirai_score_5y_res",])))
-        
-        mirai_or <- coef
-        mirai_sd <- (CI[2]-CI[1])/(2*qnorm(0.975))
-        
-      } else {
-        
-        mirai_or <- NA
-        mirai_sd <- NA
-        
-      }
-      
-      # Grab GAIL coef
-      if("gail_score" %in% comb){
-        
-        coef <- exp(test$coefficients[names(test$coefficients) == "gail_score_res"])
-        
-        CI <- suppressMessages(unname(exp(confint(test)[rownames(confint(test)) == "gail_score_res",])))
-        
-        gail_or <- coef
-        gail_sd <- (CI[2]-CI[1])/(2*qnorm(0.975))
-        
-      } else {
-        
-        gail_or <- NA
-        gail_sd <- NA
-        
-      }
-      
-      # Grab Cumulus coef
-      if("cumulus_reading" %in% comb){
-        
-        coef <- exp(test$coefficients[names(test$coefficients) == "cumulus_reading_res"])
-        
-        CI <- suppressMessages(unname(exp(confint(test)[rownames(confint(test)) == "cumulus_reading_res",])))
-        
-        cumulus_or <- coef
-        cumulus_sd <- (CI[2]-CI[1])/(2*qnorm(0.975))
-        
-      } else {
-        
-        cumulus_or <- NA
-        cumulus_sd <- NA
-        
-      }
-      
-      # Grab AUC from testing data
-      test_data <- cross_val_data |>
-        filter(group == fold) |>
-        filter(!is.na(cumulus_reading)) |>
-        mutate(fitted.values = predict(test, newdata = cur_data(), type = "response"))
-      
-      roc <- suppressMessages(roc(test_data$cc_status, test_data$fitted.values, direction = "<"))
-      auc <- auc(roc)
-      # auc.ci <- unname(ci.auc(test_data$cc_status, test_data$fitted.values))
-      # 
-      # auc_sd <- (auc.ci[3]-auc.ci[1])/(2*qnorm(0.975))
-      auc_sd <- NA
-      
-      # Add to ROC data
-      if(i == 1){
-        roc_data <- data.frame(sensitivity = roc$sensitivities, specificity = roc$specificities, score = paste(comb, collapse=' + '))
-      } else {
-        roc_data <- bind_rows(roc_data, data.frame(sensitivity = roc$sensitivities, specificity = roc$specificities, score = paste(comb, collapse=' + ')))
-      }
-      
-      # Write row to the dataframe
-      new_row <- c(paste0("Model ", i), cc_split, mirai_or, mirai_sd, gail_or, gail_sd, cumulus_or, cumulus_sd, auc, auc_sd, fold, rpt)
-      
-      table2[nrow(table2)+1,] <- new_row
-      
-      
-    }
-    
-    
-  }
-}
-
-# Clean and create overall table
-table2_clean <- table2 |>
-  group_by(fold, repetition) |>
-  mutate(model_spec = row_number()) |>
-  ungroup() |>
-  group_by(model_spec) |>
-  mutate(across(c(MIRAI, GAIL, Cumulus, AUC), function(x){
-    
-    if(is.na(x[1])) return("-")
-    
-    x <- as.numeric(x)
-    
-    mean <- mean(x)
-    lci <- quantile(x, 0.025)
-    uci <- quantile(x, 0.975)
-    
-    return(paste0(sprintf("%.2f", mean), 
-                  " (",
-                  sprintf("%.2f", lci),
-                  ", ",
-                  sprintf("%.2f", uci),
-                  ")"))
-    
-  })) |>
-  ungroup() |>
-  select(MIRAI, GAIL, Cumulus, AUC) |>
-  distinct()
-
-
-```
-
-### Table 2 Bootstrapped
-```{r}
-
-model <- list()
-or_estimations <- scores_and_rf_data$output
-
-for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
-  
-  # Create matching variables
-  temp_data <- or_estimations |>
-    filter(!is.na(!!sym(score))) |>
-    filter(cc_status == 0)
-
-  # Fit model calculating score using matching variables
-  # Fitting model on controls that have the score measured
-  model[[score]] <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age + match.ethnicity")), data = temp_data)
-  
-  # Predict on whole dataset and calculate residuals
-  or_estimations[!is.na(or_estimations[[score]]), paste0(score, "_res")] <- predict(model[[score]], or_estimations[!is.na(or_estimations[[score]]),])
-  or_estimations[[paste0(score, "_res")]] <- qlogis(or_estimations[[score]]/100) - or_estimations[[paste0(score, "_res")]]
-  
-  # Calculate missingness indicator variable
-  or_estimations[[paste0(score, "_res_missing")]] <- is.na(or_estimations[[paste0(score, "_res")]])
-  or_estimations[[paste0(score, "_res")]][is.na(or_estimations[[paste0(score, "_res")]])] <- 0
-  
-  
-}
-  
-# Loop though folds
-# Initialise dataframe for results
-table2 <- data.frame(model= character(0), dataset = character(0), MIRAI = numeric(0), MIRAI_SD = numeric(0), GAIL = numeric(0), GAIL_SD = numeric(0), Cumulus = numeric(0), Cumulus_SD = numeric(0), AUC = numeric(0), AUC_SD = numeric(0), fold = numeric(0), repetition = numeric(0))
-
-# Loop through rows
-i <- 0
-
-# Parameters of repeated k-fold CV
-r <- 100 # Number of repeats
-
-for(rpt in 1:r) {
-    
-  # Set seed
-  set.seed(345 + rpt)
-  
-  # Bootstrap resample data
-  bootstrap_sample <- or_estimations[sample(1:nrow(or_estimations), size = nrow(or_estimations), replace = T),]
-  
-  # Generate the folds
-  cross_val_data <- bootstrap_sample
-  
-  for(fold in 1:1){
-    # Loop through combinations of the risk scores
-    all_risk_scores <- c("mirai_score_5y", "gail_score", "cumulus_reading")
-    risk_score_combinations <- lapply(1:length(all_risk_scores), function(m) combn(all_risk_scores, m, simplify = FALSE))
-    risk_score_combinations <- unlist(risk_score_combinations, recursive = FALSE)
-    
-    # Normalize train/test folds separately
-    for(score in c("gail_score_res", "mirai_score_5y_res", "cumulus_reading_res")){
-      sd <- cross_val_data |> dplyr::pull(paste0(score)) |> sd(na.rm = TRUE)
-      cross_val_data <- cross_val_data |>
-        mutate(
-          !!sym(score) := !!sym(score) / sd
-          )
-    }
-    
-    for(comb in risk_score_combinations){
-      
-      # If density not included - run on everyone
-      if(!"cumulus_reading" %in% comb){
-        
-        i <- i + 1
-        
-        # Write and run glm with cc_status as outcome and residuals + missingness indicators as predictors
-        formula_glm <- paste0("cc_status ~ ", paste0(comb, "_res", collapse =  " + "))
-        test <- glm(as.formula(formula_glm), data = cross_val_data, family = 'binomial')
-        
-        # Get case/control split for table
-        cc_split <- paste0(cross_val_data |> filter(cc_status == 1) |> nrow(), "/", cross_val_data |> filter(cc_status == 0) |> nrow())
-        
-        # Grab MIRAI coef
-        if("mirai_score_5y" %in% comb){
-          
-          coef <- exp(test$coefficients[names(test$coefficients) == "mirai_score_5y_res"])
-          
-          CI <- suppressMessages(unname(exp(confint(test)[rownames(confint(test)) == "mirai_score_5y_res",])))
-          
-          mirai_or <- coef
-          mirai_sd <- (CI[2]-CI[1])/(2*qnorm(0.975))
-          
-        } else {
-          
-          mirai_or <- NA
-          mirai_sd <- NA
-          
-        }
-        
-        # Grab GAIL coef
-        if("gail_score" %in% comb){
-          
-          coef <- exp(test$coefficients[names(test$coefficients) == "gail_score_res"])
-          
-          CI <- suppressMessages(unname(exp(confint(test)[rownames(confint(test)) == "gail_score_res",])))
-          
-          gail_or <- coef
-          gail_sd <- (CI[2]-CI[1])/(2*qnorm(0.975))
-          
-        } else {
-          
-          gail_or <- NA
-          gail_sd <- NA
-          
-        }
-        
-        # Grab AUC from testing data
-        test_data <- cross_val_data |>
-          mutate(fitted.values = predict(test, newdata = cur_data(), type = "response"))
-        
-        roc <- suppressMessages(roc(test_data$cc_status, test_data$fitted.values, direction = "<"))
-        auc <- auc(roc)
-        # auc.ci <- unname(ci.auc(test_data$cc_status, test_data$fitted.values))
-        # 
-        # auc_sd <- (auc.ci[3]-auc.ci[1])/(2*qnorm(0.975))
-        auc_sd <- NA
-        
-        # Add to ROC data
-        if(i == 1){
-          roc_data <- data.frame(sensitivity = roc$sensitivities, specificity = roc$specificities, score = paste(comb, collapse=' + '))
-        } else {
-          roc_data <- bind_rows(roc_data, data.frame(sensitivity = roc$sensitivities, specificity = roc$specificities, score = paste(comb, collapse=' + ')))
-        }
-        
-        # Write row to the dataframe
-        new_row <- c(paste0("Model ", i), cc_split, mirai_or, mirai_sd, gail_or, gail_sd, NA, NA, auc, auc_sd, fold, rpt)
-        
-        table2[nrow(table2)+1,] <- new_row
-        
-      }
-      
-      i <- i + 1
-      
-      # Write and run glm with cc_status as outcome and residuals + missingness indicators as predictors
-      formula_glm <- paste0("cc_status ~ ", paste0(comb, "_res", collapse =  " + "))
-      test <- glm(as.formula(formula_glm), data = cross_val_data |> filter(!is.na(cumulus_reading)), family = 'binomial')
-      
-      # Get case/control split for table
-      cc_split <- paste0(cross_val_data |> filter(!is.na(cumulus_reading)) |> filter(cc_status == 1) |> nrow(), "/", cross_val_data |> filter(!is.na(cumulus_reading)) |> filter(cc_status == 0) |> nrow())
-      
-      # Grab MIRAI coef
-      if("mirai_score_5y" %in% comb){
-        
-        coef <- exp(test$coefficients[names(test$coefficients) == "mirai_score_5y_res"])
-        
-        CI <- suppressMessages(unname(exp(confint(test)[rownames(confint(test)) == "mirai_score_5y_res",])))
-        
-        mirai_or <- coef
-        mirai_sd <- (CI[2]-CI[1])/(2*qnorm(0.975))
-        
-      } else {
-        
-        mirai_or <- NA
-        mirai_sd <- NA
-        
-      }
-      
-      # Grab GAIL coef
-      if("gail_score" %in% comb){
-        
-        coef <- exp(test$coefficients[names(test$coefficients) == "gail_score_res"])
-        
-        CI <- suppressMessages(unname(exp(confint(test)[rownames(confint(test)) == "gail_score_res",])))
-        
-        gail_or <- coef
-        gail_sd <- (CI[2]-CI[1])/(2*qnorm(0.975))
-        
-      } else {
-        
-        gail_or <- NA
-        gail_sd <- NA
-        
-      }
-      
-      # Grab Cumulus coef
-      if("cumulus_reading" %in% comb){
-        
-        coef <- exp(test$coefficients[names(test$coefficients) == "cumulus_reading_res"])
-        
-        CI <- suppressMessages(unname(exp(confint(test)[rownames(confint(test)) == "cumulus_reading_res",])))
-        
-        cumulus_or <- coef
-        cumulus_sd <- (CI[2]-CI[1])/(2*qnorm(0.975))
-        
-      } else {
-        
-        cumulus_or <- NA
-        cumulus_sd <- NA
-        
-      }
-      
-      # Grab AUC from testing data
-      test_data <- cross_val_data |>
-        filter(!is.na(cumulus_reading)) |>
-        mutate(fitted.values = predict(test, newdata = cur_data(), type = "response"))
-      
-      roc <- suppressMessages(roc(test_data$cc_status, test_data$fitted.values, direction = "<"))
-      auc <- auc(roc)
-      # auc.ci <- unname(ci.auc(test_data$cc_status, test_data$fitted.values))
-      # 
-      # auc_sd <- (auc.ci[3]-auc.ci[1])/(2*qnorm(0.975))
-      auc_sd <- NA
-      
-      # Add to ROC data
-      if(i == 1){
-        roc_data <- data.frame(sensitivity = roc$sensitivities, specificity = roc$specificities, score = paste(comb, collapse=' + '))
-      } else {
-        roc_data <- bind_rows(roc_data, data.frame(sensitivity = roc$sensitivities, specificity = roc$specificities, score = paste(comb, collapse=' + ')))
-      }
-      
-      # Write row to the dataframe
-      new_row <- c(paste0("Model ", i), cc_split, mirai_or, mirai_sd, gail_or, gail_sd, cumulus_or, cumulus_sd, auc, auc_sd, fold, rpt)
-      
-      table2[nrow(table2)+1,] <- new_row
-      
-      
-    }
-    
-    
-  }
-}
-
-# Clean and create overall table
-table2_clean <- table2 |>
-  group_by(fold, repetition) |>
-  mutate(model_spec = row_number()) |>
-  ungroup() |>
-  group_by(model_spec) |>
-  mutate(across(c(MIRAI, GAIL, Cumulus, AUC), function(x){
-    
-    if(is.na(x[1])) return("-")
-    
-    x <- as.numeric(x)
-    
-    mean <- mean(x)
-    lci <- quantile(x, 0.025)
-    uci <- quantile(x, 0.975)
-    
-    return(paste0(sprintf("%.2f", mean), 
-                  " (",
-                  sprintf("%.2f", lci),
-                  ", ",
-                  sprintf("%.2f", uci),
-                  ")"))
-    
-  })) |>
-  ungroup() |>
-  select(MIRAI, GAIL, Cumulus, AUC) |>
-  distinct()
-
-# Change to gt
-table2_gt <- table2_clean |>
-  gt()
-
-gtsave(table2_gt, "../../results/tables/table_2_bootstrapped.docx")
-
-
-```
-
-### Addition GAIL and Cumulus to MIRAI
-```{r}
-
-model <- list()
-or_estimations <- scores_and_rf_data$output
-
-for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
-  
-  # Create matching variables
-  temp_data <- or_estimations |>
-    filter(!is.na(!!sym(score))) |>
-    filter(cc_status == 0)
-
-  # Fit model calculating score using matching variables
-  # Fitting model on controls that have the score measured
-  model[[score]] <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age + match.ethnicity")), data = temp_data)
-  
-  # Predict on whole dataset and calculate residuals
-  or_estimations[!is.na(or_estimations[[score]]), paste0(score, "_res")] <- predict(model[[score]], or_estimations[!is.na(or_estimations[[score]]),])
-  or_estimations[[paste0(score, "_res")]] <- qlogis(or_estimations[[score]]/100) - or_estimations[[paste0(score, "_res")]]
-  
-  # Calculate missingness indicator variable
-  or_estimations[[paste0(score, "_res_missing")]] <- is.na(or_estimations[[paste0(score, "_res")]])
-  or_estimations[[paste0(score, "_res")]][is.na(or_estimations[[paste0(score, "_res")]])] <- 0
-  
-  
-}
-
-# Number of folds
-k <- 5
-
-# Set seed
-set.seed(987)
-
-# Split data
-cross_val_data <- or_estimations |>
-  slice(sample(1:n())) |>
-  mutate(group = ceiling(k * row_number()/n()))
-
-# Initialise output
-output <- list()
-
-# Loop through folds
-for(i in 1:k){
-  
-  # Addition of GAIL to Mirai
-  indep_model <- cross_val_data |>
-    filter(group != i) |>
-    lm(formula = gail_score_res ~ mirai_score_5y_res)
-  
-  # Replace residuals with new residuals
-  training_data <- cross_val_data |>
-    filter(group != i) |>
-    mutate(gail_score_res_2 = indep_model$residuals)
-  
-  # Fit model
-  cc_model <- training_data |>
-    glm(formula = cc_status ~ mirai_score_5y_res + gail_score_res_2, family = "binomial")
-  
-  # Extract beta coefficient
-  beta <- cc_model$coefficients[names(cc_model$coefficients) == "gail_score_res_2"]
-  
-  # Calculate odds ratios
-  output[[i]] <- cross_val_data |>
-    filter(group == i) |>
-    mutate(
-      gail_score_res_2 = gail_score_res - predict(indep_model, newdata = cur_data()),
-      or_gail = exp(beta * gail_score_res_2),
-      or_gail = or_gail / mean(or_gail[cc_status == 0]),
-      mirai_score_5y_gail = mirai_score_5y * or_gail
-    ) |>
-    filter(cc_status == 1) |>
-    mutate(across(c(mirai_score_5y, mirai_score_5y_gail), function(x){
-          case_when(
-            x <= 1.5 ~ ">0-1.5%",
-            x <= 8 ~ ">1.5-4%",
-            TRUE ~ ">4%"
-          )
-    }))
-  
-  
-}
-
-# Combine output together
-output_combined <- bind_rows(output) |>
-  mutate(weight = 100/n()) |>
-  xtabs(formula = weight ~ mirai_score_5y + mirai_score_5y_gail) |>
-  as.data.frame()
-  
-# Plot Sankey Diagram
-sankey_data <- output_combined |>
-  mutate(x = "MIRAI",
-         next_x = "MIRAI + GAIL",
-         node = case_when(
-            mirai_score_5y == ">0-1.5%" ~ 0,
-            mirai_score_5y == ">1.5-4%" ~ 1,
-            mirai_score_5y == ">4%" ~ 2
-         ),
-         next_node = case_when(
-            mirai_score_5y_gail == ">0-1.5%" ~ 0,
-            mirai_score_5y_gail == ">1.5-4%" ~ 1,
-            mirai_score_5y_gail == ">4%" ~ 2
-         ),
-         value = Freq)
-
-sankey_data_extra <- sankey_data |>
-  mutate(x = "MIRAI + GAIL",
-         next_x = NA,
-         node = next_node,
-         next_node = NA,
-         value = Freq)
-
-sankey_data <- bind_rows(sankey_data, sankey_data_extra) |>
-  mutate(x = factor(x, levels = c("MIRAI","MIRAI + GAIL")),
-         next_x = factor(next_x, levels = c("MIRAI","MIRAI + GAIL")))
-
-node_totals <- sankey_data %>%
-  group_by(x, node) %>%
-  summarise(node_value = sum(value), .groups = "drop") %>%
-  group_by(x) %>%
+temp <- or_estimations |>
   mutate(
-    stage_total = sum(node_value),
-    pct = node_value / stage_total * 100,
-    label = sprintf("%.1f%%", pct)
+    mammoyear_approx = as.numeric(Entry) + (study.entry.age - AgeatEntry),
+    mammoyear_group = cut2(mammoyear_approx, g = 3)
   )
 
-sankey_data <- sankey_data %>%
-  left_join(node_totals %>% select(x, node, label), 
-            by = c("x", "node"))
-         
-plot <- ggplot(sankey_data, aes(x = x, 
-               next_x = next_x, 
-               node = node, 
-               next_node = next_node,
-               fill = factor(node, levels = 0:2, labels = c(">0-1.5%", ">1.5-4%", ">4%")),
-               value = value,
-               label = label
-               )) +
-  geom_sankey(flow.alpha = .6,
-              node.color = "gray30") +
-  geom_sankey_label(size = 3.5, color = "black", fill = "white") +
-  theme_sankey(base_size = 15) +
-  labs(x = NULL,
-       fill = "5-Year Risk")
+for(i in unique(temp$mammoyear_group)){
+  
+  cat("\n\n", i)
+  
+  temp |>
+    filter(mammoyear_group == i) |>
+    roc(cc_status, mirai_score_5y_res) |>
+    auc() |>
+    print()
+  
+  temp |>
+    filter(mammoyear_group == i) |>
+    roc(cc_status, mirai_score_5y_res) |>
+    ci.auc() |>
+    print()
+  
+}
 
-
-plot
-
-
-ggsave(plot, filename = "../../results/plots_svg/classification_sankey.svg", height = 5, width =6)
+temp |>
+  ggplot(aes(x = mammoyear_approx, fill = cumulus_reading_res_missing)) +
+  geom_histogram(alpha = 0.3, bins = 20, boundary = 0, colour = "black", position = "identity") +
+  theme_minimal()
 
 ```
-

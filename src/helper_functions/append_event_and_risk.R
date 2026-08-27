@@ -26,7 +26,7 @@ set_metadata_fn <- "//rds/data/DGE/DUDGE/Shared/GENERATIONS/CoreData/v20230927/R
 
 # Append incident cancers to passed DICOM UIDs
 append_event_data <- function(eligible_dicom_uids, dicom_metadata = NULL, set_metadata = NULL, years_fup = NA)  {
-  #browser()
+  # browser()
   if(length(dim(eligible_dicom_uids))) # Handle passing dataframe
     eligible_dicom_uids <- eligible_dicom_uids[,1]
   
@@ -83,8 +83,6 @@ append_risk_scores <- function(data, eligible_dicom_uids, years, return_data=F) 
   risk_mirai <- load_mirai_score("../../../output/risk_scores/mirai_scores.csv", years)
   data <- data |>
     merge(risk_mirai, by='TCode')
-  
-  print(summary(data$mirai_score_5y))
   
   #browser()
     # Append Cumulus scores
