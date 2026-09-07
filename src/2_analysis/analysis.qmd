@@ -114,7 +114,7 @@ clean_risk_factors <- function(df) {
       N_Rels = factor(N_Rels),
       AgeMen = na_if(AgeMen, 99),
       Parous = if_else(Age1st == 98, "Nonparous", "Parous"),
-      Age1st = na_if(Age1st, 98),
+      Age1st = if_else(Age1st %in% c(98,99), NA, Age1st),
       Race = factor(Race),
       bodysizebminow = na_if(bodysizebminow, 999)
     )
@@ -972,7 +972,7 @@ lvl_order <- c(
   # Age at 1st birth
   "< 24 years", "24 - 26 years", "26 - 29 years", ">= 30 years",
   # Biopsies & relatives
-  "0", "1", "1+",
+  "0", "1+",
   # Race (if you include it)
   "White", "Non-white"
 )
@@ -981,7 +981,7 @@ lvl_order <- c(
 study.data <- scores_and_rf_data$output %>%
   # mutate(cumulus_eligible = !is.na(cumulus_reading)) |>
   select('TCode', 'cc_status', 'time.of.onset', 'cumulus_reading', 'mirai_score_5y', 'gail_score',
-         'study.entry.age', 'bodysizebminow', 'diagyear') %>%
+         'study.entry.age', 'bodysizebminow', 'diagyear', 'ICDt', 'er_Status') %>%
   left_join(scores_and_rf_data$gail_data, by='TCode') %>%
   mutate(
     time.of.onset = if_else(!is.finite(time.of.onset), NA, time.of.onset),
@@ -1029,50 +1029,70 @@ table.one <-
     diagage = T1 + time.of.onset,
     cc_status = factor(cc_status, levels=c(0, 1), labels = c('Control', 'Case')),
     HypPlas = factor(HypPlas, levels=c(0, 1), labels = c('No', 'Yes')),
-    N_Biop = factor(N_Biop),
+    N_Biop = factor(N_Biop, levels=c(0,1), labels = c("0", "1+")),
     N_Rels = factor(N_Rels),
     AgeMen = ifelse(AgeMen != 99, AgeMen, NA),
-    Age1st = ifelse(Age1st != 98, Age1st, NA),
+    Age1st = case_when(
+      Age1st == 98 ~ "Nulliparous",
+      Age1st == 99 ~ NA,
+      Age1st < 24 ~ "<24",
+      Age1st < 26 ~ "24-26",
+      Age1st < 29 ~ "26-29",
+      TRUE ~ "30+"
+    ),
+    invasive = case_when(
+      is.na(ICDt) ~ "Non-case",
+      substr(ICDt, 1, 3) == "C50" ~ "Invasive",
+      TRUE ~ "DCIS"
+    ),
+    er_Status = case_when(
+      is.na(ICDt) ~ "Non-case",
+      is.na(er_Status) ~ "Unknown",
+      TRUE ~ er_Status
+    ),
     Race = factor(Race),
     # cumulus_eligible = factor(cumulus_eligible)
-  ) %>% select(cc_status, diagyear, T1, diagage, time.of.onset, manuf_model, N_Biop, AgeMen, Age1st, N_Rels, Race, mirai_score_5y, gail_score, cumulus_reading) |>
+  ) %>% select(cc_status, T1, manuf_model, Race, AgeMen, Age1st, N_Biop, N_Rels, mirai_score_5y, gail_score, cumulus_reading, diagage, time.of.onset, invasive, er_Status) |>
   # Removing information on cancer diagnoses for controls
   mutate(
-    diagyear = if_else(cc_status == "Control", NA, diagyear),
     time.of.onset = if_else(cc_status == "Control", NA, time.of.onset),
     diagage = if_else(cc_status == "Control", NA, diagage),
+    invasive = if_else(cc_status == "Control", "Non-case", invasive),
+    invasive = factor(invasive, levels = c("Invasive", "DCIS", "Non-case")),
+    er_Status = if_else(cc_status == "Control", "Non-case", er_Status),
+    er_Status = factor(er_Status, levels = c("Positive", "Negative", "Unknown", "Non-case")),
   ) |>
   tbl_summary(
     by = cc_status,   # stratify by CC status
     type = list(
       T1 ~ "continuous",
-      diagyear ~ "continuous",
       diagage ~ "continuous",
       time.of.onset ~ "continuous",
       AgeMen ~ "continuous",
-      Age1st ~ "continuous",
       mirai_score_5y ~ "continuous",
       gail_score ~ "continuous",
-      cumulus_reading ~ "continuous"
+      cumulus_reading ~ "continuous",
+      invasive ~ "categorical"
     ),
     label = list(
       
-      diagyear ~ "Year of BC diagnosis, Median (IQR)",
       T1 ~ "Age at mammogram (years), Median (IQR)",
-      diagage ~ "Age at BC diagnosis (years), Median (IQR)",
-      time.of.onset ~ "Time from mammogram to BC diagnosis (years), Median (IQR)",
       manuf_model ~ "Mammography device used",
-      N_Biop ~ "No. benign breast biopsies",
-      AgeMen ~ "Age at menarche (years), Median (IQR)",
-      Age1st ~ "Age at first pregnancy (years), Median (IQR)",
-      N_Rels ~ "No. 1st-degree relatives with breast cancer",
       Race ~ "Race/ethnicity",
+      AgeMen ~ "Age at menarche (years), Median (IQR)",
+      Age1st ~ "Age at first live birth (years)",
+      N_Biop ~ "No. benign breast biopsies",
+      N_Rels ~ "No. 1st-degree relatives with breast cancer",
       mirai_score_5y ~ "Mirai 5-year absolute risk (%), Median (IQR)",
       gail_score ~ "Gail 5-year absolute risk (%), Median (IQR)",
-      cumulus_reading ~ "Percent breast density (%), Median (IQR)"
+      cumulus_reading ~ "Percent breast density (%), Median (IQR)",
+      diagage ~ "Age at BC diagnosis (years), Median (IQR)",
+      time.of.onset ~ "Time from mammogram to BC diagnosis (years), Median (IQR)",
+      invasive ~ "Cancer type",
+      er_Status ~ "ER status"
     ),
     statistic = list(
-      all_continuous() ~ "{median} ({IQR})",
+      all_continuous() ~ "{median} ({p25}-{p75})",
       all_categorical() ~ "{n} ({p}%)"
     ),
     digits = all_continuous() ~ 1,
@@ -1086,9 +1106,10 @@ table.one <-
   modify_table_body(
     ~ .x |>
       mutate(
-        stat_1 = if_else(stat_1 == "NA (NA)", "-", stat_1)
+        stat_1 = if_else(stat_1 %in% c("NA (NA-NA)", "0 (0%)"), "-", stat_1)
       ) |>
-      filter(!(row_type == "missing" & stat_2 == "0"))
+      filter(!(row_type == "missing" & stat_2 == "0")) |>
+      filter(!label == "Non-case")
   )
 
 
@@ -1097,8 +1118,6 @@ table.one
 
 # DOCX
 gt::gtsave(gtsummary::as_gt(table.one), filename = "../../results/tables/table_1.docx")
-# PNG (for README.md purposes)
-# gt::gtsave(as_gt(table.one), filename = "../../results/tables/table_1.png", zoom = 2, vwidth = 1200)
 
 ```
 
@@ -2023,7 +2042,61 @@ for(plot in plots){
 
 ```
 
-### Calibration Plots
+### Relative risk calibration
+```{r}
+
+df_secondary_final |>
+  filter(case | time_to_end_fup >= 5) |>
+  glm(formula = case ~ log(X5Y_risk), family = "binomial") |>
+  summary()
+
+df_secondary_final |>
+  filter(case | time_to_end_fup >= 5) |>
+  glm(formula = case ~ log(gail_score), family = "binomial") |>
+  summary()
+
+```
+
+
+### Relative risk calibration by quintile
+```{r}
+
+df_secondary_final |>
+  mutate(score_odds = X5Y_risk/(1-X5Y_risk)) |>
+  filter(case | time_to_end_fup >= 5) |>
+  mutate(overall_observed_odds = sum(case)/sum(!case),
+         overall_expected_odds = mean(score_odds),
+         group = cut2(X5Y_risk, g = 5)) |>
+  group_by(group) |>
+  summarise(
+    expected_or = mean(score_odds)/first(overall_expected_odds),
+    observed_or = (sum(case)/sum(!case))/first(overall_observed_odds)
+  ) |>
+  ggplot(aes(x = expected_or, y = observed_or)) +
+  geom_abline(slope = 1, intercept = 0, colour = "black", linetype = "dashed") +
+  geom_point(colour = "red") +
+  theme_minimal() +
+  geom_rect(ymin = -Inf, ymax = Inf, xmin = -Inf, xmax = Inf, alpha = 0, colour = "black")
+
+df_secondary_final |>
+  mutate(score_odds = gail_score/(1-gail_score)) |>
+  filter(case | time_to_end_fup >= 5) |>
+  mutate(overall_observed_odds = sum(case)/sum(!case),
+         overall_expected_odds = mean(score_odds),
+         group = cut2(gail_score, g = 5)) |>
+  group_by(group) |>
+  summarise(
+    expected_or = mean(score_odds)/first(overall_expected_odds),
+    observed_or = (sum(case)/sum(!case))/first(overall_observed_odds)
+  ) |>
+  ggplot(aes(x = expected_or, y = observed_or)) +
+  geom_abline(slope = 1, intercept = 0, colour = "black", linetype = "dashed") +
+  geom_point(colour = "red") +
+  theme_minimal() +
+  geom_rect(ymin = -Inf, ymax = Inf, xmin = -Inf, xmax = Inf, alpha = 0, colour = "black")
+
+
+```
 
 ## Debugging
 
@@ -2156,5 +2229,57 @@ temp |>
   ggplot(aes(x = mammoyear_approx, fill = cumulus_reading_res_missing)) +
   geom_histogram(alpha = 0.3, bins = 20, boundary = 0, colour = "black", position = "identity") +
   theme_minimal()
+
+```
+
+### Relative risk calibration slope
+```{r}
+
+# Calculate residuals
+model <- list()
+or_estimations <- scores_and_rf_data$output
+
+for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
+  
+  # Create matching variables
+  temp_data <- or_estimations |>
+    filter(!is.na(!!sym(score))) |>
+    filter(cc_status == 0)
+
+  # Fit model calculating score using matching variables
+  # Fitting model on controls that have the score measured
+  model[[score]] <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age + match.ethnicity")), data = temp_data)
+  
+  # Predict on whole dataset and calculate residuals
+  or_estimations[!is.na(or_estimations[[score]]), paste0(score, "_res")] <- predict(model[[score]], or_estimations[!is.na(or_estimations[[score]]),])
+  or_estimations[[paste0(score, "_res")]] <- qlogis(or_estimations[[score]]/100) - or_estimations[[paste0(score, "_res")]]
+  
+  # Calculate missingness indicator variable
+  or_estimations[[paste0(score, "_res_missing")]] <- is.na(or_estimations[[paste0(score, "_res")]])
+  or_estimations[[paste0(score, "_res")]][is.na(or_estimations[[paste0(score, "_res")]])] <- 0
+
+}
+
+# Get relative risk calibration slope
+or_estimations |>
+  filter(cc_status == 1 | time.of.onset >= 5) |>
+  glm(formula = cc_status ~ mirai_score_5y_res + match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age + match.ethnicity, family = "binomial") |>
+  summary()
+
+or_estimations |>
+  filter(cc_status == 1 | time.of.onset >= 5) |>
+  glm(formula = cc_status ~ gail_score_res + match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age + match.ethnicity, family = "binomial") |>
+  summary()
+
+# Get relative risk calibration slope (not adjusting for cancer free time)
+or_estimations |>
+  filter(cc_status == 1 | time.of.onset >= 5) |>
+  glm(formula = cc_status ~ mirai_score_5y_res + match.entry.age + match.year.entry + match.mammo.age + match.ethnicity, family = "binomial") |>
+  summary()
+
+or_estimations |>
+  filter(cc_status == 1 | time.of.onset >= 5) |>
+  glm(formula = cc_status ~ gail_score_res + match.entry.age + match.year.entry + match.mammo.age + match.ethnicity, family = "binomial") |>
+  summary()
 
 ```

@@ -45,7 +45,9 @@ GAIL_score_generation <- function(df, years){
       # Age1st
       Age1st = time_length(interval(start = ADOB_F, end = pregdate_1_f), unit = "year"),
       Age1st = case_when(
-        is.na(Age1st) ~ 98,
+        pregparitycnt %in% c(0, -1) ~ 98,
+        pregparitycnt == 99 ~ 99,
+        is.na(Age1st) ~ 99,
         Age1st > T1 ~ 98,
         TRUE ~ floor(Age1st)
       ),
