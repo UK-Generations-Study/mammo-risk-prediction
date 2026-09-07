@@ -15,7 +15,7 @@ GAIL_score_generation <- function(df, years){
 
   # Clean df to generate GAIL scores
   df_gail <- df |>
-    select(TCode, study.entry.age, study.exit.age) |>
+    select(TCode, study.entry.age) |>
     merge(data_rf, by = "TCode", all.x = T) |>
     mutate(
       
@@ -30,32 +30,29 @@ GAIL_score_generation <- function(df, years){
       T2 = study.entry.age + years,
       
       # N_Biop
-      # NOTE: Unclear whether this data has been updated - will check
       N_Biop = brbensurgbiopsyN,
       
       # HypPlas
-      # NOTE: Currently do not believe we have information on this - will check
       HypPlas = 99,
       
       # AgeMen
-      # NOTE: Unclear what to code people who are pre-menarche as
       AgeMen = case_when(
         menarcheage %in% c(888, 999) ~ 99,
-        menarcheage == 777 ~ 99, # This needs to be checked
+        menarcheage == 777 ~ 99,
         TRUE ~ menarcheage
       ),
       
       # Age1st
-      # NOTE: can move some 98 to 99 if we get information on claimed parity at the questionnaire before the fup start
       Age1st = time_length(interval(start = ADOB_F, end = pregdate_1_f), unit = "year"),
       Age1st = case_when(
-        is.na(Age1st) ~ 98,
+        pregparitycnt %in% c(0, -1) ~ 98,
+        pregparitycnt == 99 ~ 99,
+        is.na(Age1st) ~ 99,
         Age1st > T1 ~ 98,
         TRUE ~ floor(Age1st)
       ),
       
       # N_Rels
-      # IN DEVELOPMENT
       N_Rels = fambrcaN,
       
       # Race
