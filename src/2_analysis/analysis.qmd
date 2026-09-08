@@ -273,10 +273,7 @@ scores_and_rf_data$output <- scores_and_rf_data$output |>
     # Age at entry
     match.entry.age = cut(AgeatEntry, breaks = seq(10, 110, by = 5)),
     match.entry.age = if_else(match.entry.age == "(30,35]", "(35,40]", match.entry.age),
-    
-    # Ethnicity
-    match.ethnicity = as.factor(if_else(ethnew5 == 1, 1, 0)),
-    
+
     # Year of entry
     match.year.entry = case_when(
       Entry <= 2005 ~ "<=2005",
@@ -684,7 +681,7 @@ table.one <-
     ),
     er_Status = case_when(
       is.na(ICDt) ~ "Non-case",
-      is.na(er_Status) ~ "Unknown",
+      is.na(er_Status) ~ NA,
       TRUE ~ er_Status
     ),
     Race = factor(Race),
@@ -697,7 +694,7 @@ table.one <-
     invasive = if_else(cc_status == "Control", "Non-case", invasive),
     invasive = factor(invasive, levels = c("Invasive", "DCIS", "Non-case")),
     er_Status = if_else(cc_status == "Control", "Non-case", er_Status),
-    er_Status = factor(er_Status, levels = c("Positive", "Negative", "Unknown", "Non-case")),
+    er_Status = factor(er_Status, levels = c("Positive", "Negative", "Non-case")),
   ) |>
   tbl_summary(
     by = cc_status,   # stratify by CC status
@@ -774,7 +771,7 @@ for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
 
   # Fit model calculating score using matching variables
   # Fitting model on controls that have the score measured
-  model[[score]] <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age + match.ethnicity")), data = temp_data)
+  model[[score]] <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age")), data = temp_data)
   
   # Predict on whole dataset and calculate residuals
   or_estimations[!is.na(or_estimations[[score]]), paste0(score, "_res")] <- predict(model[[score]], or_estimations[!is.na(or_estimations[[score]]),])
@@ -1342,7 +1339,7 @@ for(years in 1:5){
   
     # Fit model calculating score using matching variables
     # Fitting model on controls that have the score measured
-    model1 <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.ethnicity + match.year.entry + match.cancer.free.time + match.mammo.age + match.ethnicity")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$cc_status == 0,])
+    model1 <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$cc_status == 0,])
   
     # Predict score on whole dataset
     scores_and_rf_data$output$model1_pred <- NA
@@ -1376,6 +1373,23 @@ gtsave(supp_table3_gt, "../../results/tables/supp_table_3.docx")
 ```
 
 ## Secondary Analysis
+
+
+### Relative risk calibration slope
+```{r}
+
+# Get relative risk calibration slope
+or_estimations |>
+  filter(cc_status == 1 | time.of.onset >= 5) |>
+  glm(formula = cc_status ~ logit(mirai_score_5y/100) + match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age, family = "binomial") |>
+  summary()
+
+or_estimations |>
+  filter(cc_status == 1 | time.of.onset >= 5) |>
+  glm(formula = cc_status ~ logit(gail_score/100) + match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age, family = "binomial") |>
+  summary()
+
+```
 
 ### Functions
 
@@ -1622,6 +1636,13 @@ df_secondary_analysis <- create_analytical_dataset(df_secondary, years = NA, can
 # Get GAIL risk scores
 scores_gail <- GAIL_score_generation(df_secondary_analysis, years = 5)
 
+# Get cancer-free time from study entry for those included
+cancer.free.time.secondary <- df_secondary_analysis |>
+  select(TCode) |>
+  do(create_analytical_dataset(., cancer = "all_breast")) |>
+  mutate(cancer.free.time = pmin(study.exit.age - study.entry.age, time.of.onset)) |>
+  select(TCode, cancer.free.time)
+
 # Add Mirai and Gail scores to analytical dataset
 df_secondary_final <- df_secondary_analysis |>
   merge(scores_mirai, by.x = c("TCode", "fupca_start_F", "Pseudo_StudyInstanceUID"), by.y = c("TCode", "acquisition_date", "study_id")) |>
@@ -1633,6 +1654,31 @@ df_secondary_final <- df_secondary_analysis |>
     time_to_diagnosis = time.of.onset,
     time_to_end_fup = study.exit.age - study.entry.age
     
+  ) |>
+  merge(cancer.free.time.secondary, by = "TCode", all.x = T) |>
+  merge(year.entry, by = "TCode", all.x = T) |>
+  mutate(
+    
+    # Age at mammogram
+    match.mammo.age = cut(study.entry.age, breaks = seq(10, 110, by = 5)),
+
+    # Age at entry
+    match.entry.age = cut(AgeatEntry, breaks = seq(10, 110, by = 5)),
+
+    # Year of entry
+    match.year.entry = case_when(
+      Entry <= 2005 ~ "<=2005",
+      Entry >= 2008 ~ ">=2008",
+      TRUE ~ as.character(Entry)
+    ),
+
+    # Cancer free time from entry
+    match.cancer.free.time = case_when(
+      cancer.free.time < 10 ~ "[0,10)",
+      cancer.free.time <13 ~ "[10,13)",
+      TRUE ~ "[13,16)"
+    ),
+
   )
 
 ```
@@ -1681,59 +1727,220 @@ for(plot in plots){
 
 ```
 
-### Relative risk calibration
+### Relative risk slope calibration
 ```{r}
 
+# Unadjusted
 df_secondary_final |>
   filter(case | time_to_end_fup >= 5) |>
-  glm(formula = case ~ log(X5Y_risk), family = "binomial") |>
+  glm(formula = case ~ logit(X5Y_risk), family = "binomial") |>
   summary()
 
 df_secondary_final |>
   filter(case | time_to_end_fup >= 5) |>
-  glm(formula = case ~ log(gail_score), family = "binomial") |>
+  glm(formula = case ~ logit(gail_score), family = "binomial") |>
+  summary()
+
+# Adjusted
+df_secondary_final |>
+  filter(case | time_to_end_fup >= 5) |>
+  glm(formula = case ~ logit(X5Y_risk) + match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age, family = "binomial") |>
+  summary()
+
+df_secondary_final |>
+  filter(case | time_to_end_fup >= 5) |>
+  glm(formula = case ~ logit(gail_score) + match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age, family = "binomial") |>
+  summary()
+
+# Residual only (refitted)
+model_secondary <- list()
+or_estimations_secondary <- df_secondary_final
+
+for(score in c("gail_score", "X5Y_risk")){
+  
+  # Create matching variables
+  temp_data <- or_estimations_secondary |>
+    filter(!is.na(!!sym(score))) |>
+    filter(!case)
+
+  # Fit model calculating score using matching variables
+  # Fitting model on controls that have the score measured
+  model_secondary[[score]] <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age")), data = temp_data)
+  
+  # Predict on whole dataset and calculate residuals
+  or_estimations_secondary[!is.na(or_estimations_secondary[[score]]), paste0(score, "_res")] <- predict(model_secondary[[score]], or_estimations_secondary[!is.na(or_estimations_secondary[[score]]),])
+  or_estimations_secondary[[paste0(score, "_res")]] <- qlogis(or_estimations_secondary[[score]]/100) - or_estimations_secondary[[paste0(score, "_res")]]
+  
+  # Calculate missingness indicator variable
+  or_estimations_secondary[[paste0(score, "_res_missing")]] <- is.na(or_estimations_secondary[[paste0(score, "_res")]])
+  or_estimations_secondary[[paste0(score, "_res")]][is.na(or_estimations_secondary[[paste0(score, "_res")]])] <- 0
+  
+  
+}
+
+or_estimations_secondary |>
+  filter(case | time_to_end_fup >= 5) |>
+  glm(formula = case ~ X5Y_risk_res, family = "binomial") |>
+  summary()
+
+or_estimations_secondary |>
+  filter(case | time_to_end_fup >= 5) |>
+  glm(formula = case ~ gail_score_res, family = "binomial") |>
+  summary()
+
+# Residuals (not refitted)
+model <- list()
+or_estimations <- scores_and_rf_data$output
+
+for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
+  
+  # Create matching variables
+  temp_data <- or_estimations |>
+    filter(!is.na(!!sym(score))) |>
+    filter(cc_status == 0)
+
+  # Fit model calculating score using matching variables
+  # Fitting model on controls that have the score measured
+  model[[score]] <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age")), data = temp_data)
+  
+}
+
+df_secondary_final_2 <- df_secondary_final |>
+  mutate(
+    
+    # Age at mammogram
+    match.mammo.age = cut(study.entry.age, breaks = seq(10, 110, by = 5)),
+
+    # Age at entry
+    match.entry.age = cut(AgeatEntry, breaks = seq(10, 110, by = 5)),
+
+    # Year of entry
+    match.year.entry = case_when(
+      Entry <= 2005 ~ "<=2005",
+      Entry >= 2008 ~ ">=2008",
+      TRUE ~ as.character(Entry)
+    ),
+    
+    # Cancer free time from entry
+    match.cancer.free.time = case_when(
+      cancer.free.time < 10 ~ "[0,10)",
+      cancer.free.time <13 ~ "[10,13)",
+      TRUE ~ "[13,16)"
+    )
+    
+  ) |>
+  mutate(
+
+    # For Cumulus
+    match.mammo.age = if_else(match.mammo.age == "(40,45]", "(45,50]", match.mammo.age),
+    match.mammo.age = if_else(match.mammo.age == "(30,35]", "(45,50]", match.mammo.age),
+    match.mammo.age = if_else(match.mammo.age == "(35,40]", "(45,50]", match.mammo.age),
+
+    # Age at entry
+    match.entry.age = if_else(match.entry.age == "(30,35]", "(35,40]", match.entry.age),
+    match.entry.age = if_else(match.entry.age == "(25,30]", "(35,40]", match.entry.age),
+    
+  )
+
+or_estimations_secondary <- df_secondary_final_2 |>
+  rename(mirai_score_5y = X5Y_risk)
+
+for(score in c("gail_score", "mirai_score_5y")){
+  
+  # Predict on whole dataset and calculate residuals
+  or_estimations_secondary[!is.na(or_estimations_secondary[[score]]), paste0(score, "_res")] <- predict(model[[score]], or_estimations_secondary[!is.na(or_estimations_secondary[[score]]),])
+  or_estimations_secondary[[paste0(score, "_res")]] <- qlogis(or_estimations_secondary[[score]]/100) - or_estimations_secondary[[paste0(score, "_res")]]
+  
+  # Calculate missingness indicator variable
+  or_estimations_secondary[[paste0(score, "_res_missing")]] <- is.na(or_estimations_secondary[[paste0(score, "_res")]])
+  or_estimations_secondary[[paste0(score, "_res")]][is.na(or_estimations_secondary[[paste0(score, "_res")]])] <- 0
+  
+  
+}
+
+or_estimations_secondary |>
+  filter(case | time_to_end_fup >= 5) |>
+  glm(formula = case ~ mirai_score_5y_res, family = "binomial") |>
+  summary()
+
+or_estimations_secondary |>
+  filter(case | time_to_end_fup >= 5) |>
+  glm(formula = case ~ gail_score_res, family = "binomial") |>
   summary()
 
 ```
 
 
-### Relative risk calibration by quintile
+
+
+### Relative risk calibration by quintile (reference overall) (logistic regression)
 ```{r}
 
-df_secondary_final |>
-  mutate(score_odds = X5Y_risk/(1-X5Y_risk)) |>
-  filter(case | time_to_end_fup >= 5) |>
-  mutate(overall_observed_odds = sum(case)/sum(!case),
-         overall_expected_odds = mean(score_odds),
-         group = cut2(X5Y_risk, g = 5)) |>
-  group_by(group) |>
-  summarise(
-    expected_or = mean(score_odds)/first(overall_expected_odds),
-    observed_or = (sum(case)/sum(!case))/first(overall_observed_odds)
-  ) |>
-  ggplot(aes(x = expected_or, y = observed_or)) +
-  geom_abline(slope = 1, intercept = 0, colour = "black", linetype = "dashed") +
-  geom_point(colour = "red") +
-  theme_minimal() +
-  geom_rect(ymin = -Inf, ymax = Inf, xmin = -Inf, xmax = Inf, alpha = 0, colour = "black")
+rr_calibration <- function(df, score){
+  
+  # Setup model data
+  model_data <- df_secondary_final |>
+    mutate(score_odds = !!sym(score)/(1-!!sym(score))) |>
+    filter(case | time_to_end_fup >= 5) |>
+    mutate(overall_expected_odds = mean(score_odds),
+           group = as.character(ntile(!!sym(score), 5))) |>
+    group_by(group) |>
+    mutate(
+      expected_or = mean(score_odds)/first(overall_expected_odds)
+    ) |>
+    ungroup() |>
+    bind_rows(df_secondary_final |> mutate(group = "0")) |>
+    filter(case | time_to_end_fup >= 5)
+  
+  # Calculate observed relative risk per quntile
+  observed_relative_risk <- model_data |>
+    glm(formula = case ~ group, family = "binomial") |>
+    tidy() |>
+    filter(term != "(Intercept)") |>
+    mutate(group = row_number()) |>
+    mutate(
+      lci = estimate - qnorm(0.975)*std.error,
+      uci = estimate + qnorm(0.975)*std.error,
+      estimate = exp(estimate),
+      lci = exp(lci),
+      uci = exp(uci)
+    )
+  
+  # Calculate expected relative risk per quntile
+  expected_relative_risk <- model_data |>
+    filter(group != "0") |>
+    group_by(group) |>
+    summarise(expected_rr = first(expected_or))
+  
+  # Merge to plot data
+  plot_data <- observed_relative_risk |>
+    merge(expected_relative_risk, by = "group")
+  
+  # Calculate y limits
+  y_limits <- range(plot_data$lci, plot_data$uci, plot_data$expected_rr)
+  
+  # Generate plot
+  p <- plot_data |>
+    ggplot(aes(x = expected_rr, y = estimate)) +
+    geom_abline(slope = 1, intercept = 0, colour = "black", linetype = "dashed") +
+    geom_point(colour = "red") +
+    coord_equal(ylim = y_limits, xlim = y_limits) +
+    scale_x_log10() +
+    scale_y_log10() +
+    geom_errorbar(
+      aes(ymin = lci, ymax = uci),
+      width = 0.05, colour = "red"
+    ) +
+    theme_minimal() +
+    geom_rect(ymin = -Inf, ymax = Inf, xmin = -Inf, xmax = Inf, alpha = 0, colour = "black")
+  
+  # Return plot
+  return(p)
+  
+}
 
-df_secondary_final |>
-  mutate(score_odds = gail_score/(1-gail_score)) |>
-  filter(case | time_to_end_fup >= 5) |>
-  mutate(overall_observed_odds = sum(case)/sum(!case),
-         overall_expected_odds = mean(score_odds),
-         group = cut2(gail_score, g = 5)) |>
-  group_by(group) |>
-  summarise(
-    expected_or = mean(score_odds)/first(overall_expected_odds),
-    observed_or = (sum(case)/sum(!case))/first(overall_observed_odds)
-  ) |>
-  ggplot(aes(x = expected_or, y = observed_or)) +
-  geom_abline(slope = 1, intercept = 0, colour = "black", linetype = "dashed") +
-  geom_point(colour = "red") +
-  theme_minimal() +
-  geom_rect(ymin = -Inf, ymax = Inf, xmin = -Inf, xmax = Inf, alpha = 0, colour = "black")
-
+rr_calibration(df_secondary_final, "X5Y_risk")
+rr_calibration(df_secondary_final, "gail_score")
 
 ```
 
@@ -1750,7 +1957,7 @@ scores_and_rf_data$output$model1_pred[!is.na(scores_and_rf_data$output$mirai_sco
 scores_and_rf_data$output$mirai_residuals <- qlogis(scores_and_rf_data$output$mirai_score_5y/100) - scores_and_rf_data$output$model1_pred
 
 # Calculate Gail residuals
-model1 <- lm(as.formula(paste0("qlogis(gail_score/100) ~ match.entry.age + match.ethnicity + match.year.entry + match.cancer.free.time + match.mammo.age")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output$gail_score) & scores_and_rf_data$output$cc_status == 0,])
+model1 <- lm(as.formula(paste0("qlogis(gail_score/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output$gail_score) & scores_and_rf_data$output$cc_status == 0,])
 scores_and_rf_data$output$model1_pred <- NA
 scores_and_rf_data$output$model1_pred[!is.na(scores_and_rf_data$output$gail_score)] <- predict(model1, scores_and_rf_data$output[!is.na(scores_and_rf_data$output$gail_score),])
 scores_and_rf_data$output$gail_residuals <- qlogis(scores_and_rf_data$output$gail_score/100) - scores_and_rf_data$output$model1_pred
@@ -1840,6 +2047,31 @@ summary(lm(mirai_residuals ~ cc_status*manuf_model, data = scores_and_rf_data$ou
 ### Analysis by year of mammogram
 ```{r}
 
+model <- list()
+or_estimations <- scores_and_rf_data$output
+
+for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
+  
+  # Create matching variables
+  temp_data <- or_estimations |>
+    filter(!is.na(!!sym(score))) |>
+    filter(cc_status == 0)
+
+  # Fit model calculating score using matching variables
+  # Fitting model on controls that have the score measured
+  model[[score]] <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age")), data = temp_data)
+  
+  # Predict on whole dataset and calculate residuals
+  or_estimations[!is.na(or_estimations[[score]]), paste0(score, "_res")] <- predict(model[[score]], or_estimations[!is.na(or_estimations[[score]]),])
+  or_estimations[[paste0(score, "_res")]] <- qlogis(or_estimations[[score]]/100) - or_estimations[[paste0(score, "_res")]]
+  
+  # Calculate missingness indicator variable
+  or_estimations[[paste0(score, "_res_missing")]] <- is.na(or_estimations[[paste0(score, "_res")]])
+  or_estimations[[paste0(score, "_res")]][is.na(or_estimations[[paste0(score, "_res")]])] <- 0
+  
+  
+}
+
 temp <- or_estimations |>
   mutate(
     mammoyear_approx = as.numeric(Entry) + (study.entry.age - AgeatEntry),
@@ -1871,54 +2103,3 @@ temp |>
 
 ```
 
-### Relative risk calibration slope
-```{r}
-
-# Calculate residuals
-model <- list()
-or_estimations <- scores_and_rf_data$output
-
-for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
-  
-  # Create matching variables
-  temp_data <- or_estimations |>
-    filter(!is.na(!!sym(score))) |>
-    filter(cc_status == 0)
-
-  # Fit model calculating score using matching variables
-  # Fitting model on controls that have the score measured
-  model[[score]] <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age + match.ethnicity")), data = temp_data)
-  
-  # Predict on whole dataset and calculate residuals
-  or_estimations[!is.na(or_estimations[[score]]), paste0(score, "_res")] <- predict(model[[score]], or_estimations[!is.na(or_estimations[[score]]),])
-  or_estimations[[paste0(score, "_res")]] <- qlogis(or_estimations[[score]]/100) - or_estimations[[paste0(score, "_res")]]
-  
-  # Calculate missingness indicator variable
-  or_estimations[[paste0(score, "_res_missing")]] <- is.na(or_estimations[[paste0(score, "_res")]])
-  or_estimations[[paste0(score, "_res")]][is.na(or_estimations[[paste0(score, "_res")]])] <- 0
-
-}
-
-# Get relative risk calibration slope
-or_estimations |>
-  filter(cc_status == 1 | time.of.onset >= 5) |>
-  glm(formula = cc_status ~ mirai_score_5y_res + match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age + match.ethnicity, family = "binomial") |>
-  summary()
-
-or_estimations |>
-  filter(cc_status == 1 | time.of.onset >= 5) |>
-  glm(formula = cc_status ~ gail_score_res + match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age + match.ethnicity, family = "binomial") |>
-  summary()
-
-# Get relative risk calibration slope (not adjusting for cancer free time)
-or_estimations |>
-  filter(cc_status == 1 | time.of.onset >= 5) |>
-  glm(formula = cc_status ~ mirai_score_5y_res + match.entry.age + match.year.entry + match.mammo.age + match.ethnicity, family = "binomial") |>
-  summary()
-
-or_estimations |>
-  filter(cc_status == 1 | time.of.onset >= 5) |>
-  glm(formula = cc_status ~ gail_score_res + match.entry.age + match.year.entry + match.mammo.age + match.ethnicity, family = "binomial") |>
-  summary()
-
-```
