@@ -333,7 +333,7 @@ non_factor_preds <- preds[!sapply(study.data.cleaned[preds], is.factor)]
 na_cols <- paste0(non_factor_preds, "_NA")
 all_preds <- c(preds, na_cols)
 formula_str <- paste(all_preds, collapse = "+")
-correlation_mv <- summary(lm(as.formula(paste('qlogis(mirai_score_5y/100)', "~", formula_str)), data=study.data.cleaned))
+correlation_mv <- summary(lm(as.formula(paste('qlogis(mirai_score_5y/100)', "~", formula_str)), data=study.data.cleaned |> mutate(Age1st_NA = if_else(Parous == "Nonparous", 0, Age1st_NA))))
 correlation_mv <- as.data.frame(correlation_mv$coefficients)
 correlation_mv$variable <- rownames(correlation_mv)
 rownames(correlation_mv) <- NULL
@@ -1146,7 +1146,7 @@ correlation <- plot_y_vs_all(study.data %>% filter(cc_status == 0), time_adjust 
 # Clean risk factors and conduct multivariable test
 study.data.cleaned <- clean_risk_factors(study.data %>% filter(cc_status == 0))
 preds <- c(
-  "T1", "N_Biop", "AgeMen", "Age1st", "N_Rels",
+  "T1", "N_Biop", "AgeMen", "Age1st", "N_Rels", "Parous",
   "cumulus_reading"
 )
 study.data.cleaned <- study.data.cleaned |>
@@ -1167,7 +1167,8 @@ non_factor_preds <- preds[!sapply(study.data.cleaned[preds], is.factor)]
 na_cols <- paste0(non_factor_preds, "_NA")
 all_preds <- c(preds, na_cols)
 formula_str <- paste(all_preds, collapse = "+")
-correlation_mv <- summary(lm(as.formula(paste('qlogis(mirai_score_5y/100)', "~", formula_str)), data=study.data.cleaned))
+correlation_mv <- summary(lm(as.formula(paste('qlogis(mirai_score_5y/100)', "~", formula_str)), data=study.data.cleaned |> mutate(Age1st_NA = if_else(Parous == "Nonparous", 0, Age1st_NA))))
+total_rsquared = if_else(correlation_mv$r.squared < 0.001, "<0.001", sprintf("%.3f", correlation_mv$r.squared))
 correlation_mv <- as.data.frame(correlation_mv$coefficients)
 correlation_mv$variable <- rownames(correlation_mv)
 rownames(correlation_mv) <- NULL
@@ -1177,6 +1178,7 @@ correlation_mv <- correlation_mv |>
     variable = case_when(
       variable == "N_Biop1" ~ "N_Biop",
       variable == "N_Rels1" ~ "N_Rels",
+      variable == "ParousParous" ~ "Parous",
       TRUE ~ variable
     )
     
@@ -1198,7 +1200,7 @@ supp_table1 <- as.data.frame(correlation$tests) |>
     lower.ci = Estimate + qnorm(0.025)*`Std. Error`,
     beta_2 = paste0(sprintf("%.2f", Estimate), " (", sprintf("%.2f",lower.ci), ", ", sprintf("%.2f", upper.ci), ")")
   ) |>
-  mutate(variable = factor(variable, levels = c("T1", "N_Biop", "AgeMen", "Age1st", "N_Rels", "cumulus_reading"), labels = c("Age at mammogram (years)", "No. benign breast biopsies","Age at menarche (years)", "Age at first pregnancy (years)", "No. 1st-degree relatives with breast cancer", "Mammographic density"))) |>
+  mutate(variable = factor(variable, levels = c("T1", "N_Biop", "AgeMen", "Parous", "Age1st", "N_Rels", "cumulus_reading"), labels = c("Age at mammogram (years)", "No. benign breast biopsies","Age at menarche (years)", "Parity", "Age at first pregnancy (years)", "No. 1st-degree relatives with breast cancer", "Mammographic density"))) |>
   arrange(variable) |>
   select(variable, beta_1, p_value_1 = p.value, r.squared, beta_2, p_value_2 = `Pr(>|t|)`) |>
   mutate(across(starts_with("p_value"), function(x){
@@ -1223,6 +1225,10 @@ supp_table1 <- as.data.frame(correlation$tests) |>
   tab_spanner(
     label = md("*Multivariable*"),
     columns = c("beta_2", "p_value_2")
+  ) |>
+  tab_footnote(
+    footnote = paste0("Multivariable R² = ", total_rsquared),
+    placement = "left"
   )
 
 supp_table1
@@ -1302,6 +1308,7 @@ for(years in 1:5){
   # Categories have to be such that if cases are represented in the category - there has to be a control represented
   # Should we make these categories different for cumulus subset or no? Gut check says no but could make categories larger for the whole study pop if so?
   scores_and_rf_data$output <- scores_and_rf_data$output |>
+    filter(is.finite(time.of.onset) | cc_status == 0) |>
     merge(cancer.free.time, by = "TCode", all.x = T) |>
     merge(year.entry, by = "TCode", all.x = T) |>
     mutate(
