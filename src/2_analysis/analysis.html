@@ -544,7 +544,7 @@ Number of participants: 616</code></pre>
 <span id="cb24-33"><a href="#cb24-33" aria-hidden="true" tabindex="-1"></a>na_cols <span class="ot">&lt;-</span> <span class="fu">paste0</span>(non_factor_preds, <span class="st">"_NA"</span>)</span>
 <span id="cb24-34"><a href="#cb24-34" aria-hidden="true" tabindex="-1"></a>all_preds <span class="ot">&lt;-</span> <span class="fu">c</span>(preds, na_cols)</span>
 <span id="cb24-35"><a href="#cb24-35" aria-hidden="true" tabindex="-1"></a>formula_str <span class="ot">&lt;-</span> <span class="fu">paste</span>(all_preds, <span class="at">collapse =</span> <span class="st">"+"</span>)</span>
-<span id="cb24-36"><a href="#cb24-36" aria-hidden="true" tabindex="-1"></a>correlation_mv <span class="ot">&lt;-</span> <span class="fu">summary</span>(<span class="fu">lm</span>(<span class="fu">as.formula</span>(<span class="fu">paste</span>(<span class="st">'qlogis(mirai_score_5y/100)'</span>, <span class="st">"~"</span>, formula_str)), <span class="at">data=</span>study.data.cleaned))</span>
+<span id="cb24-36"><a href="#cb24-36" aria-hidden="true" tabindex="-1"></a>correlation_mv <span class="ot">&lt;-</span> <span class="fu">summary</span>(<span class="fu">lm</span>(<span class="fu">as.formula</span>(<span class="fu">paste</span>(<span class="st">'qlogis(mirai_score_5y/100)'</span>, <span class="st">"~"</span>, formula_str)), <span class="at">data=</span>study.data.cleaned <span class="sc">|&gt;</span> <span class="fu">mutate</span>(<span class="at">Age1st_NA =</span> <span class="fu">if_else</span>(Parous <span class="sc">==</span> <span class="st">"Nonparous"</span>, <span class="dv">0</span>, Age1st_NA))))</span>
 <span id="cb24-37"><a href="#cb24-37" aria-hidden="true" tabindex="-1"></a>correlation_mv <span class="ot">&lt;-</span> <span class="fu">as.data.frame</span>(correlation_mv<span class="sc">$</span>coefficients)</span>
 <span id="cb24-38"><a href="#cb24-38" aria-hidden="true" tabindex="-1"></a>correlation_mv<span class="sc">$</span>variable <span class="ot">&lt;-</span> <span class="fu">rownames</span>(correlation_mv)</span>
 <span id="cb24-39"><a href="#cb24-39" aria-hidden="true" tabindex="-1"></a><span class="fu">rownames</span>(correlation_mv) <span class="ot">&lt;-</span> <span class="cn">NULL</span></span>
@@ -970,23 +970,23 @@ Number of participants: 616</code></pre>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Print in quarto</span></span>
 <span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>table.one</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
-<div id="xagcgvpsox" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#xagcgvpsox table {
+<div id="upqxtmbvyo" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#upqxtmbvyo table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#xagcgvpsox thead, #xagcgvpsox tbody, #xagcgvpsox tfoot, #xagcgvpsox tr, #xagcgvpsox td, #xagcgvpsox th {
+#upqxtmbvyo thead, #upqxtmbvyo tbody, #upqxtmbvyo tfoot, #upqxtmbvyo tr, #upqxtmbvyo td, #upqxtmbvyo th {
   border-style: none;
 }
 
-#xagcgvpsox p {
+#upqxtmbvyo p {
   margin: 0;
   padding: 0;
 }
 
-#xagcgvpsox .gt_table {
+#upqxtmbvyo .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -1012,12 +1012,12 @@ Number of participants: 616</code></pre>
   border-left-color: #D3D3D3;
 }
 
-#xagcgvpsox .gt_caption {
+#upqxtmbvyo .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#xagcgvpsox .gt_title {
+#upqxtmbvyo .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -1029,7 +1029,7 @@ Number of participants: 616</code></pre>
   border-bottom-width: 0;
 }
 
-#xagcgvpsox .gt_subtitle {
+#upqxtmbvyo .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -1041,7 +1041,7 @@ Number of participants: 616</code></pre>
   border-top-width: 0;
 }
 
-#xagcgvpsox .gt_heading {
+#upqxtmbvyo .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -1053,13 +1053,13 @@ Number of participants: 616</code></pre>
   border-right-color: #D3D3D3;
 }
 
-#xagcgvpsox .gt_bottom_border {
+#upqxtmbvyo .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#xagcgvpsox .gt_col_headings {
+#upqxtmbvyo .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -1074,7 +1074,7 @@ Number of participants: 616</code></pre>
   border-right-color: #D3D3D3;
 }
 
-#xagcgvpsox .gt_col_heading {
+#upqxtmbvyo .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -1094,7 +1094,7 @@ Number of participants: 616</code></pre>
   overflow-x: hidden;
 }
 
-#xagcgvpsox .gt_column_spanner_outer {
+#upqxtmbvyo .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -1106,15 +1106,15 @@ Number of participants: 616</code></pre>
   padding-right: 4px;
 }
 
-#xagcgvpsox .gt_column_spanner_outer:first-child {
+#upqxtmbvyo .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#xagcgvpsox .gt_column_spanner_outer:last-child {
+#upqxtmbvyo .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#xagcgvpsox .gt_column_spanner {
+#upqxtmbvyo .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -1126,11 +1126,11 @@ Number of participants: 616</code></pre>
   width: 100%;
 }
 
-#xagcgvpsox .gt_spanner_row {
+#upqxtmbvyo .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#xagcgvpsox .gt_group_heading {
+#upqxtmbvyo .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -1156,7 +1156,7 @@ Number of participants: 616</code></pre>
   text-align: left;
 }
 
-#xagcgvpsox .gt_empty_group_heading {
+#upqxtmbvyo .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -1171,15 +1171,15 @@ Number of participants: 616</code></pre>
   vertical-align: middle;
 }
 
-#xagcgvpsox .gt_from_md > :first-child {
+#upqxtmbvyo .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#xagcgvpsox .gt_from_md > :last-child {
+#upqxtmbvyo .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#xagcgvpsox .gt_row {
+#upqxtmbvyo .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -1198,7 +1198,7 @@ Number of participants: 616</code></pre>
   overflow-x: hidden;
 }
 
-#xagcgvpsox .gt_stub {
+#upqxtmbvyo .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -1211,7 +1211,7 @@ Number of participants: 616</code></pre>
   padding-right: 5px;
 }
 
-#xagcgvpsox .gt_stub_row_group {
+#upqxtmbvyo .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -1225,15 +1225,15 @@ Number of participants: 616</code></pre>
   vertical-align: top;
 }
 
-#xagcgvpsox .gt_row_group_first td {
+#upqxtmbvyo .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#xagcgvpsox .gt_row_group_first th {
+#upqxtmbvyo .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#xagcgvpsox .gt_summary_row {
+#upqxtmbvyo .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -1243,16 +1243,16 @@ Number of participants: 616</code></pre>
   padding-right: 5px;
 }
 
-#xagcgvpsox .gt_first_summary_row {
+#upqxtmbvyo .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#xagcgvpsox .gt_first_summary_row.thick {
+#upqxtmbvyo .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#xagcgvpsox .gt_last_summary_row {
+#upqxtmbvyo .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -1262,7 +1262,7 @@ Number of participants: 616</code></pre>
   border-bottom-color: #D3D3D3;
 }
 
-#xagcgvpsox .gt_grand_summary_row {
+#upqxtmbvyo .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -1272,7 +1272,7 @@ Number of participants: 616</code></pre>
   padding-right: 5px;
 }
 
-#xagcgvpsox .gt_first_grand_summary_row {
+#upqxtmbvyo .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -1282,7 +1282,7 @@ Number of participants: 616</code></pre>
   border-top-color: #D3D3D3;
 }
 
-#xagcgvpsox .gt_last_grand_summary_row_top {
+#upqxtmbvyo .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -1292,11 +1292,11 @@ Number of participants: 616</code></pre>
   border-bottom-color: #D3D3D3;
 }
 
-#xagcgvpsox .gt_striped {
+#upqxtmbvyo .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#xagcgvpsox .gt_table_body {
+#upqxtmbvyo .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -1305,7 +1305,7 @@ Number of participants: 616</code></pre>
   border-bottom-color: #D3D3D3;
 }
 
-#xagcgvpsox .gt_footnotes {
+#upqxtmbvyo .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -1319,7 +1319,7 @@ Number of participants: 616</code></pre>
   border-right-color: #D3D3D3;
 }
 
-#xagcgvpsox .gt_footnote {
+#upqxtmbvyo .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -1328,7 +1328,7 @@ Number of participants: 616</code></pre>
   padding-right: 5px;
 }
 
-#xagcgvpsox .gt_sourcenotes {
+#upqxtmbvyo .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -1342,7 +1342,7 @@ Number of participants: 616</code></pre>
   border-right-color: #D3D3D3;
 }
 
-#xagcgvpsox .gt_sourcenote {
+#upqxtmbvyo .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -1350,72 +1350,72 @@ Number of participants: 616</code></pre>
   padding-right: 5px;
 }
 
-#xagcgvpsox .gt_left {
+#upqxtmbvyo .gt_left {
   text-align: left;
 }
 
-#xagcgvpsox .gt_center {
+#upqxtmbvyo .gt_center {
   text-align: center;
 }
 
-#xagcgvpsox .gt_right {
+#upqxtmbvyo .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#xagcgvpsox .gt_font_normal {
+#upqxtmbvyo .gt_font_normal {
   font-weight: normal;
 }
 
-#xagcgvpsox .gt_font_bold {
+#upqxtmbvyo .gt_font_bold {
   font-weight: bold;
 }
 
-#xagcgvpsox .gt_font_italic {
+#upqxtmbvyo .gt_font_italic {
   font-style: italic;
 }
 
-#xagcgvpsox .gt_super {
+#upqxtmbvyo .gt_super {
   font-size: 65%;
 }
 
-#xagcgvpsox .gt_footnote_marks {
+#upqxtmbvyo .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#xagcgvpsox .gt_asterisk {
+#upqxtmbvyo .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#xagcgvpsox .gt_indent_1 {
+#upqxtmbvyo .gt_indent_1 {
   text-indent: 5px;
 }
 
-#xagcgvpsox .gt_indent_2 {
+#upqxtmbvyo .gt_indent_2 {
   text-indent: 10px;
 }
 
-#xagcgvpsox .gt_indent_3 {
+#upqxtmbvyo .gt_indent_3 {
   text-indent: 15px;
 }
 
-#xagcgvpsox .gt_indent_4 {
+#upqxtmbvyo .gt_indent_4 {
   text-indent: 20px;
 }
 
-#xagcgvpsox .gt_indent_5 {
+#upqxtmbvyo .gt_indent_5 {
   text-indent: 25px;
 }
 
-#xagcgvpsox .katex-display {
+#upqxtmbvyo .katex-display {
   display: inline-flex !important;
   margin-bottom: 0.75em !important;
 }
 
-#xagcgvpsox div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+#upqxtmbvyo div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
   height: 0px !important;
 }
 </style>
@@ -2461,7 +2461,7 @@ Number of participants: 616</code></pre>
 <span id="cb34-10"><a href="#cb34-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Clean risk factors and conduct multivariable test</span></span>
 <span id="cb34-11"><a href="#cb34-11" aria-hidden="true" tabindex="-1"></a>study.data.cleaned <span class="ot">&lt;-</span> <span class="fu">clean_risk_factors</span>(study.data <span class="sc">%&gt;%</span> <span class="fu">filter</span>(cc_status <span class="sc">==</span> <span class="dv">0</span>))</span>
 <span id="cb34-12"><a href="#cb34-12" aria-hidden="true" tabindex="-1"></a>preds <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
-<span id="cb34-13"><a href="#cb34-13" aria-hidden="true" tabindex="-1"></a>  <span class="st">"T1"</span>, <span class="st">"N_Biop"</span>, <span class="st">"AgeMen"</span>, <span class="st">"Age1st"</span>, <span class="st">"N_Rels"</span>,</span>
+<span id="cb34-13"><a href="#cb34-13" aria-hidden="true" tabindex="-1"></a>  <span class="st">"T1"</span>, <span class="st">"N_Biop"</span>, <span class="st">"AgeMen"</span>, <span class="st">"Age1st"</span>, <span class="st">"N_Rels"</span>, <span class="st">"Parous"</span>,</span>
 <span id="cb34-14"><a href="#cb34-14" aria-hidden="true" tabindex="-1"></a>  <span class="st">"cumulus_reading"</span></span>
 <span id="cb34-15"><a href="#cb34-15" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb34-16"><a href="#cb34-16" aria-hidden="true" tabindex="-1"></a>study.data.cleaned <span class="ot">&lt;-</span> study.data.cleaned <span class="sc">|&gt;</span></span>
@@ -2482,65 +2482,71 @@ Number of participants: 616</code></pre>
 <span id="cb34-31"><a href="#cb34-31" aria-hidden="true" tabindex="-1"></a>na_cols <span class="ot">&lt;-</span> <span class="fu">paste0</span>(non_factor_preds, <span class="st">"_NA"</span>)</span>
 <span id="cb34-32"><a href="#cb34-32" aria-hidden="true" tabindex="-1"></a>all_preds <span class="ot">&lt;-</span> <span class="fu">c</span>(preds, na_cols)</span>
 <span id="cb34-33"><a href="#cb34-33" aria-hidden="true" tabindex="-1"></a>formula_str <span class="ot">&lt;-</span> <span class="fu">paste</span>(all_preds, <span class="at">collapse =</span> <span class="st">"+"</span>)</span>
-<span id="cb34-34"><a href="#cb34-34" aria-hidden="true" tabindex="-1"></a>correlation_mv <span class="ot">&lt;-</span> <span class="fu">summary</span>(<span class="fu">lm</span>(<span class="fu">as.formula</span>(<span class="fu">paste</span>(<span class="st">'qlogis(mirai_score_5y/100)'</span>, <span class="st">"~"</span>, formula_str)), <span class="at">data=</span>study.data.cleaned))</span>
-<span id="cb34-35"><a href="#cb34-35" aria-hidden="true" tabindex="-1"></a>correlation_mv <span class="ot">&lt;-</span> <span class="fu">as.data.frame</span>(correlation_mv<span class="sc">$</span>coefficients)</span>
-<span id="cb34-36"><a href="#cb34-36" aria-hidden="true" tabindex="-1"></a>correlation_mv<span class="sc">$</span>variable <span class="ot">&lt;-</span> <span class="fu">rownames</span>(correlation_mv)</span>
-<span id="cb34-37"><a href="#cb34-37" aria-hidden="true" tabindex="-1"></a><span class="fu">rownames</span>(correlation_mv) <span class="ot">&lt;-</span> <span class="cn">NULL</span></span>
-<span id="cb34-38"><a href="#cb34-38" aria-hidden="true" tabindex="-1"></a>correlation_mv <span class="ot">&lt;-</span> correlation_mv <span class="sc">|&gt;</span></span>
-<span id="cb34-39"><a href="#cb34-39" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
-<span id="cb34-40"><a href="#cb34-40" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb34-41"><a href="#cb34-41" aria-hidden="true" tabindex="-1"></a>    <span class="at">variable =</span> <span class="fu">case_when</span>(</span>
-<span id="cb34-42"><a href="#cb34-42" aria-hidden="true" tabindex="-1"></a>      variable <span class="sc">==</span> <span class="st">"N_Biop1"</span> <span class="sc">~</span> <span class="st">"N_Biop"</span>,</span>
-<span id="cb34-43"><a href="#cb34-43" aria-hidden="true" tabindex="-1"></a>      variable <span class="sc">==</span> <span class="st">"N_Rels1"</span> <span class="sc">~</span> <span class="st">"N_Rels"</span>,</span>
-<span id="cb34-44"><a href="#cb34-44" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> variable</span>
-<span id="cb34-45"><a href="#cb34-45" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb34-46"><a href="#cb34-46" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb34-47"><a href="#cb34-47" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb34-48"><a href="#cb34-48" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb34-49"><a href="#cb34-49" aria-hidden="true" tabindex="-1"></a><span class="co"># Create table 2</span></span>
-<span id="cb34-50"><a href="#cb34-50" aria-hidden="true" tabindex="-1"></a>supp_table1 <span class="ot">&lt;-</span> <span class="fu">as.data.frame</span>(correlation<span class="sc">$</span>tests) <span class="sc">|&gt;</span></span>
-<span id="cb34-51"><a href="#cb34-51" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Process to get beta value with CI</span></span>
-<span id="cb34-52"><a href="#cb34-52" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
-<span id="cb34-53"><a href="#cb34-53" aria-hidden="true" tabindex="-1"></a>    <span class="at">upper.ci =</span> statistic <span class="sc">+</span> <span class="fu">qnorm</span>(<span class="fl">0.975</span>)<span class="sc">*</span>se,</span>
-<span id="cb34-54"><a href="#cb34-54" aria-hidden="true" tabindex="-1"></a>    <span class="at">lower.ci =</span> statistic <span class="sc">+</span> <span class="fu">qnorm</span>(<span class="fl">0.025</span>)<span class="sc">*</span>se,</span>
-<span id="cb34-55"><a href="#cb34-55" aria-hidden="true" tabindex="-1"></a>    <span class="at">beta_1 =</span> <span class="fu">paste0</span>(<span class="fu">sprintf</span>(<span class="st">"%.2f"</span>, statistic), <span class="st">" ("</span>, <span class="fu">sprintf</span>(<span class="st">"%.2f"</span>, lower.ci), <span class="st">", "</span>, <span class="fu">sprintf</span>(<span class="st">"%.2f"</span>, upper.ci), <span class="st">")"</span>),</span>
-<span id="cb34-56"><a href="#cb34-56" aria-hidden="true" tabindex="-1"></a>    <span class="at">r.squared =</span> <span class="fu">if_else</span>(r.squared <span class="sc">&lt;</span> <span class="fl">0.01</span>, <span class="st">"&lt;0.01"</span>, <span class="fu">sprintf</span>(<span class="st">"%.2f"</span>, r.squared))</span>
-<span id="cb34-57"><a href="#cb34-57" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
-<span id="cb34-58"><a href="#cb34-58" aria-hidden="true" tabindex="-1"></a>  <span class="fu">merge</span>(correlation_mv, <span class="at">by =</span> <span class="st">"variable"</span>) <span class="sc">|&gt;</span></span>
-<span id="cb34-59"><a href="#cb34-59" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Process to get MV beta value with CI</span></span>
-<span id="cb34-60"><a href="#cb34-60" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
-<span id="cb34-61"><a href="#cb34-61" aria-hidden="true" tabindex="-1"></a>    <span class="at">upper.ci =</span> Estimate <span class="sc">+</span> <span class="fu">qnorm</span>(<span class="fl">0.975</span>)<span class="sc">*</span><span class="st">`</span><span class="at">Std. Error</span><span class="st">`</span>,</span>
-<span id="cb34-62"><a href="#cb34-62" aria-hidden="true" tabindex="-1"></a>    <span class="at">lower.ci =</span> Estimate <span class="sc">+</span> <span class="fu">qnorm</span>(<span class="fl">0.025</span>)<span class="sc">*</span><span class="st">`</span><span class="at">Std. Error</span><span class="st">`</span>,</span>
-<span id="cb34-63"><a href="#cb34-63" aria-hidden="true" tabindex="-1"></a>    <span class="at">beta_2 =</span> <span class="fu">paste0</span>(<span class="fu">sprintf</span>(<span class="st">"%.2f"</span>, Estimate), <span class="st">" ("</span>, <span class="fu">sprintf</span>(<span class="st">"%.2f"</span>,lower.ci), <span class="st">", "</span>, <span class="fu">sprintf</span>(<span class="st">"%.2f"</span>, upper.ci), <span class="st">")"</span>)</span>
-<span id="cb34-64"><a href="#cb34-64" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
-<span id="cb34-65"><a href="#cb34-65" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">variable =</span> <span class="fu">factor</span>(variable, <span class="at">levels =</span> <span class="fu">c</span>(<span class="st">"T1"</span>, <span class="st">"N_Biop"</span>, <span class="st">"AgeMen"</span>, <span class="st">"Age1st"</span>, <span class="st">"N_Rels"</span>, <span class="st">"cumulus_reading"</span>), <span class="at">labels =</span> <span class="fu">c</span>(<span class="st">"Age at mammogram (years)"</span>, <span class="st">"No. benign breast biopsies"</span>,<span class="st">"Age at menarche (years)"</span>, <span class="st">"Age at first pregnancy (years)"</span>, <span class="st">"No. 1st-degree relatives with breast cancer"</span>, <span class="st">"Mammographic density"</span>))) <span class="sc">|&gt;</span></span>
-<span id="cb34-66"><a href="#cb34-66" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(variable) <span class="sc">|&gt;</span></span>
-<span id="cb34-67"><a href="#cb34-67" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(variable, beta_1, <span class="at">p_value_1 =</span> p.value, r.squared, beta_2, <span class="at">p_value_2 =</span> <span class="st">`</span><span class="at">Pr(&gt;|t|)</span><span class="st">`</span>) <span class="sc">|&gt;</span></span>
-<span id="cb34-68"><a href="#cb34-68" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="fu">across</span>(<span class="fu">starts_with</span>(<span class="st">"p_value"</span>), <span class="cf">function</span>(x){</span>
-<span id="cb34-69"><a href="#cb34-69" aria-hidden="true" tabindex="-1"></a>    <span class="fu">case_when</span>(</span>
-<span id="cb34-70"><a href="#cb34-70" aria-hidden="true" tabindex="-1"></a>      x <span class="sc">&lt;</span> <span class="fl">0.001</span> <span class="sc">~</span> <span class="st">"&lt;0.001"</span>,</span>
-<span id="cb34-71"><a href="#cb34-71" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="fu">sprintf</span>(<span class="st">"%.3f"</span>,x)</span>
-<span id="cb34-72"><a href="#cb34-72" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb34-73"><a href="#cb34-73" aria-hidden="true" tabindex="-1"></a>  })) <span class="sc">|&gt;</span></span>
-<span id="cb34-74"><a href="#cb34-74" aria-hidden="true" tabindex="-1"></a>  <span class="fu">gt</span>() <span class="sc">|&gt;</span></span>
-<span id="cb34-75"><a href="#cb34-75" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cols_label</span>(</span>
-<span id="cb34-76"><a href="#cb34-76" aria-hidden="true" tabindex="-1"></a>    variable <span class="sc">~</span> <span class="fu">md</span>(<span class="st">"**Risk Factor**"</span>),</span>
-<span id="cb34-77"><a href="#cb34-77" aria-hidden="true" tabindex="-1"></a>    beta_1 <span class="sc">~</span> <span class="fu">md</span>(<span class="st">"**Beta (95% CI)**"</span>),</span>
-<span id="cb34-78"><a href="#cb34-78" aria-hidden="true" tabindex="-1"></a>    p_value_1 <span class="sc">~</span> <span class="fu">md</span>(<span class="st">"**P Value**"</span>),</span>
-<span id="cb34-79"><a href="#cb34-79" aria-hidden="true" tabindex="-1"></a>    r.squared <span class="sc">~</span> <span class="fu">md</span>(<span class="st">"**R²**"</span>),</span>
-<span id="cb34-80"><a href="#cb34-80" aria-hidden="true" tabindex="-1"></a>    beta_2 <span class="sc">~</span> <span class="fu">md</span>(<span class="st">"**Beta (95% CI)**"</span>),</span>
-<span id="cb34-81"><a href="#cb34-81" aria-hidden="true" tabindex="-1"></a>    p_value_2 <span class="sc">~</span> <span class="fu">md</span>(<span class="st">"**P Value**"</span>)</span>
-<span id="cb34-82"><a href="#cb34-82" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
-<span id="cb34-83"><a href="#cb34-83" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tab_spanner</span>(</span>
-<span id="cb34-84"><a href="#cb34-84" aria-hidden="true" tabindex="-1"></a>    <span class="at">label =</span> <span class="fu">md</span>(<span class="st">"*Univariable*"</span>),</span>
-<span id="cb34-85"><a href="#cb34-85" aria-hidden="true" tabindex="-1"></a>    <span class="at">columns =</span> <span class="fu">c</span>(<span class="st">"beta_1"</span>, <span class="st">"p_value_1"</span>, <span class="st">"r.squared"</span>)</span>
-<span id="cb34-86"><a href="#cb34-86" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
-<span id="cb34-87"><a href="#cb34-87" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tab_spanner</span>(</span>
-<span id="cb34-88"><a href="#cb34-88" aria-hidden="true" tabindex="-1"></a>    <span class="at">label =</span> <span class="fu">md</span>(<span class="st">"*Multivariable*"</span>),</span>
-<span id="cb34-89"><a href="#cb34-89" aria-hidden="true" tabindex="-1"></a>    <span class="at">columns =</span> <span class="fu">c</span>(<span class="st">"beta_2"</span>, <span class="st">"p_value_2"</span>)</span>
-<span id="cb34-90"><a href="#cb34-90" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb34-91"><a href="#cb34-91" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb34-92"><a href="#cb34-92" aria-hidden="true" tabindex="-1"></a>supp_table1</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb34-34"><a href="#cb34-34" aria-hidden="true" tabindex="-1"></a>correlation_mv <span class="ot">&lt;-</span> <span class="fu">summary</span>(<span class="fu">lm</span>(<span class="fu">as.formula</span>(<span class="fu">paste</span>(<span class="st">'qlogis(mirai_score_5y/100)'</span>, <span class="st">"~"</span>, formula_str)), <span class="at">data=</span>study.data.cleaned <span class="sc">|&gt;</span> <span class="fu">mutate</span>(<span class="at">Age1st_NA =</span> <span class="fu">if_else</span>(Parous <span class="sc">==</span> <span class="st">"Nonparous"</span>, <span class="dv">0</span>, Age1st_NA))))</span>
+<span id="cb34-35"><a href="#cb34-35" aria-hidden="true" tabindex="-1"></a>total_rsquared <span class="ot">=</span> <span class="fu">if_else</span>(correlation_mv<span class="sc">$</span>r.squared <span class="sc">&lt;</span> <span class="fl">0.001</span>, <span class="st">"&lt;0.001"</span>, <span class="fu">sprintf</span>(<span class="st">"%.3f"</span>, correlation_mv<span class="sc">$</span>r.squared))</span>
+<span id="cb34-36"><a href="#cb34-36" aria-hidden="true" tabindex="-1"></a>correlation_mv <span class="ot">&lt;-</span> <span class="fu">as.data.frame</span>(correlation_mv<span class="sc">$</span>coefficients)</span>
+<span id="cb34-37"><a href="#cb34-37" aria-hidden="true" tabindex="-1"></a>correlation_mv<span class="sc">$</span>variable <span class="ot">&lt;-</span> <span class="fu">rownames</span>(correlation_mv)</span>
+<span id="cb34-38"><a href="#cb34-38" aria-hidden="true" tabindex="-1"></a><span class="fu">rownames</span>(correlation_mv) <span class="ot">&lt;-</span> <span class="cn">NULL</span></span>
+<span id="cb34-39"><a href="#cb34-39" aria-hidden="true" tabindex="-1"></a>correlation_mv <span class="ot">&lt;-</span> correlation_mv <span class="sc">|&gt;</span></span>
+<span id="cb34-40"><a href="#cb34-40" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb34-41"><a href="#cb34-41" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb34-42"><a href="#cb34-42" aria-hidden="true" tabindex="-1"></a>    <span class="at">variable =</span> <span class="fu">case_when</span>(</span>
+<span id="cb34-43"><a href="#cb34-43" aria-hidden="true" tabindex="-1"></a>      variable <span class="sc">==</span> <span class="st">"N_Biop1"</span> <span class="sc">~</span> <span class="st">"N_Biop"</span>,</span>
+<span id="cb34-44"><a href="#cb34-44" aria-hidden="true" tabindex="-1"></a>      variable <span class="sc">==</span> <span class="st">"N_Rels1"</span> <span class="sc">~</span> <span class="st">"N_Rels"</span>,</span>
+<span id="cb34-45"><a href="#cb34-45" aria-hidden="true" tabindex="-1"></a>      variable <span class="sc">==</span> <span class="st">"ParousParous"</span> <span class="sc">~</span> <span class="st">"Parous"</span>,</span>
+<span id="cb34-46"><a href="#cb34-46" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> variable</span>
+<span id="cb34-47"><a href="#cb34-47" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb34-48"><a href="#cb34-48" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb34-49"><a href="#cb34-49" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb34-50"><a href="#cb34-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-51"><a href="#cb34-51" aria-hidden="true" tabindex="-1"></a><span class="co"># Create table 2</span></span>
+<span id="cb34-52"><a href="#cb34-52" aria-hidden="true" tabindex="-1"></a>supp_table1 <span class="ot">&lt;-</span> <span class="fu">as.data.frame</span>(correlation<span class="sc">$</span>tests) <span class="sc">|&gt;</span></span>
+<span id="cb34-53"><a href="#cb34-53" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Process to get beta value with CI</span></span>
+<span id="cb34-54"><a href="#cb34-54" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb34-55"><a href="#cb34-55" aria-hidden="true" tabindex="-1"></a>    <span class="at">upper.ci =</span> statistic <span class="sc">+</span> <span class="fu">qnorm</span>(<span class="fl">0.975</span>)<span class="sc">*</span>se,</span>
+<span id="cb34-56"><a href="#cb34-56" aria-hidden="true" tabindex="-1"></a>    <span class="at">lower.ci =</span> statistic <span class="sc">+</span> <span class="fu">qnorm</span>(<span class="fl">0.025</span>)<span class="sc">*</span>se,</span>
+<span id="cb34-57"><a href="#cb34-57" aria-hidden="true" tabindex="-1"></a>    <span class="at">beta_1 =</span> <span class="fu">paste0</span>(<span class="fu">sprintf</span>(<span class="st">"%.2f"</span>, statistic), <span class="st">" ("</span>, <span class="fu">sprintf</span>(<span class="st">"%.2f"</span>, lower.ci), <span class="st">", "</span>, <span class="fu">sprintf</span>(<span class="st">"%.2f"</span>, upper.ci), <span class="st">")"</span>),</span>
+<span id="cb34-58"><a href="#cb34-58" aria-hidden="true" tabindex="-1"></a>    <span class="at">r.squared =</span> <span class="fu">if_else</span>(r.squared <span class="sc">&lt;</span> <span class="fl">0.01</span>, <span class="st">"&lt;0.01"</span>, <span class="fu">sprintf</span>(<span class="st">"%.2f"</span>, r.squared))</span>
+<span id="cb34-59"><a href="#cb34-59" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span> </span>
+<span id="cb34-60"><a href="#cb34-60" aria-hidden="true" tabindex="-1"></a>  <span class="fu">merge</span>(correlation_mv, <span class="at">by =</span> <span class="st">"variable"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb34-61"><a href="#cb34-61" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Process to get MV beta value with CI</span></span>
+<span id="cb34-62"><a href="#cb34-62" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb34-63"><a href="#cb34-63" aria-hidden="true" tabindex="-1"></a>    <span class="at">upper.ci =</span> Estimate <span class="sc">+</span> <span class="fu">qnorm</span>(<span class="fl">0.975</span>)<span class="sc">*</span><span class="st">`</span><span class="at">Std. Error</span><span class="st">`</span>,</span>
+<span id="cb34-64"><a href="#cb34-64" aria-hidden="true" tabindex="-1"></a>    <span class="at">lower.ci =</span> Estimate <span class="sc">+</span> <span class="fu">qnorm</span>(<span class="fl">0.025</span>)<span class="sc">*</span><span class="st">`</span><span class="at">Std. Error</span><span class="st">`</span>,</span>
+<span id="cb34-65"><a href="#cb34-65" aria-hidden="true" tabindex="-1"></a>    <span class="at">beta_2 =</span> <span class="fu">paste0</span>(<span class="fu">sprintf</span>(<span class="st">"%.2f"</span>, Estimate), <span class="st">" ("</span>, <span class="fu">sprintf</span>(<span class="st">"%.2f"</span>,lower.ci), <span class="st">", "</span>, <span class="fu">sprintf</span>(<span class="st">"%.2f"</span>, upper.ci), <span class="st">")"</span>)</span>
+<span id="cb34-66"><a href="#cb34-66" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb34-67"><a href="#cb34-67" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">variable =</span> <span class="fu">factor</span>(variable, <span class="at">levels =</span> <span class="fu">c</span>(<span class="st">"T1"</span>, <span class="st">"N_Biop"</span>, <span class="st">"AgeMen"</span>, <span class="st">"Parous"</span>, <span class="st">"Age1st"</span>, <span class="st">"N_Rels"</span>, <span class="st">"cumulus_reading"</span>), <span class="at">labels =</span> <span class="fu">c</span>(<span class="st">"Age at mammogram (years)"</span>, <span class="st">"No. benign breast biopsies"</span>,<span class="st">"Age at menarche (years)"</span>, <span class="st">"Parity"</span>, <span class="st">"Age at first pregnancy (years)"</span>, <span class="st">"No. 1st-degree relatives with breast cancer"</span>, <span class="st">"Mammographic density"</span>))) <span class="sc">|&gt;</span></span>
+<span id="cb34-68"><a href="#cb34-68" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(variable) <span class="sc">|&gt;</span></span>
+<span id="cb34-69"><a href="#cb34-69" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(variable, beta_1, <span class="at">p_value_1 =</span> p.value, r.squared, beta_2, <span class="at">p_value_2 =</span> <span class="st">`</span><span class="at">Pr(&gt;|t|)</span><span class="st">`</span>) <span class="sc">|&gt;</span></span>
+<span id="cb34-70"><a href="#cb34-70" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="fu">across</span>(<span class="fu">starts_with</span>(<span class="st">"p_value"</span>), <span class="cf">function</span>(x){</span>
+<span id="cb34-71"><a href="#cb34-71" aria-hidden="true" tabindex="-1"></a>    <span class="fu">case_when</span>(</span>
+<span id="cb34-72"><a href="#cb34-72" aria-hidden="true" tabindex="-1"></a>      x <span class="sc">&lt;</span> <span class="fl">0.001</span> <span class="sc">~</span> <span class="st">"&lt;0.001"</span>,</span>
+<span id="cb34-73"><a href="#cb34-73" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="fu">sprintf</span>(<span class="st">"%.3f"</span>,x)</span>
+<span id="cb34-74"><a href="#cb34-74" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb34-75"><a href="#cb34-75" aria-hidden="true" tabindex="-1"></a>  })) <span class="sc">|&gt;</span></span>
+<span id="cb34-76"><a href="#cb34-76" aria-hidden="true" tabindex="-1"></a>  <span class="fu">gt</span>() <span class="sc">|&gt;</span></span>
+<span id="cb34-77"><a href="#cb34-77" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cols_label</span>(</span>
+<span id="cb34-78"><a href="#cb34-78" aria-hidden="true" tabindex="-1"></a>    variable <span class="sc">~</span> <span class="fu">md</span>(<span class="st">"**Risk Factor**"</span>),</span>
+<span id="cb34-79"><a href="#cb34-79" aria-hidden="true" tabindex="-1"></a>    beta_1 <span class="sc">~</span> <span class="fu">md</span>(<span class="st">"**Beta (95% CI)**"</span>),</span>
+<span id="cb34-80"><a href="#cb34-80" aria-hidden="true" tabindex="-1"></a>    p_value_1 <span class="sc">~</span> <span class="fu">md</span>(<span class="st">"**P Value**"</span>),</span>
+<span id="cb34-81"><a href="#cb34-81" aria-hidden="true" tabindex="-1"></a>    r.squared <span class="sc">~</span> <span class="fu">md</span>(<span class="st">"**R²**"</span>),</span>
+<span id="cb34-82"><a href="#cb34-82" aria-hidden="true" tabindex="-1"></a>    beta_2 <span class="sc">~</span> <span class="fu">md</span>(<span class="st">"**Beta (95% CI)**"</span>),</span>
+<span id="cb34-83"><a href="#cb34-83" aria-hidden="true" tabindex="-1"></a>    p_value_2 <span class="sc">~</span> <span class="fu">md</span>(<span class="st">"**P Value**"</span>)</span>
+<span id="cb34-84"><a href="#cb34-84" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb34-85"><a href="#cb34-85" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tab_spanner</span>(</span>
+<span id="cb34-86"><a href="#cb34-86" aria-hidden="true" tabindex="-1"></a>    <span class="at">label =</span> <span class="fu">md</span>(<span class="st">"*Univariable*"</span>),</span>
+<span id="cb34-87"><a href="#cb34-87" aria-hidden="true" tabindex="-1"></a>    <span class="at">columns =</span> <span class="fu">c</span>(<span class="st">"beta_1"</span>, <span class="st">"p_value_1"</span>, <span class="st">"r.squared"</span>)</span>
+<span id="cb34-88"><a href="#cb34-88" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb34-89"><a href="#cb34-89" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tab_spanner</span>(</span>
+<span id="cb34-90"><a href="#cb34-90" aria-hidden="true" tabindex="-1"></a>    <span class="at">label =</span> <span class="fu">md</span>(<span class="st">"*Multivariable*"</span>),</span>
+<span id="cb34-91"><a href="#cb34-91" aria-hidden="true" tabindex="-1"></a>    <span class="at">columns =</span> <span class="fu">c</span>(<span class="st">"beta_2"</span>, <span class="st">"p_value_2"</span>)</span>
+<span id="cb34-92"><a href="#cb34-92" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb34-93"><a href="#cb34-93" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tab_footnote</span>(</span>
+<span id="cb34-94"><a href="#cb34-94" aria-hidden="true" tabindex="-1"></a>    <span class="at">footnote =</span> <span class="fu">paste0</span>(<span class="st">"Multivariable R² = "</span>, total_rsquared),</span>
+<span id="cb34-95"><a href="#cb34-95" aria-hidden="true" tabindex="-1"></a>    <span class="at">placement =</span> <span class="st">"left"</span></span>
+<span id="cb34-96"><a href="#cb34-96" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb34-97"><a href="#cb34-97" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-98"><a href="#cb34-98" aria-hidden="true" tabindex="-1"></a>supp_table1</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div id="vvayfhpwpp" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
 <style>#vvayfhpwpp table {
@@ -3016,31 +3022,37 @@ Number of participants: 616</code></pre>
 <td headers="p_value_1" class="gt_row gt_left">0.008</td>
 <td headers="r.squared" class="gt_row gt_left">0.02</td>
 <td headers="beta_2" class="gt_row gt_right">0.01 (0.00, 0.02)</td>
-<td headers="p_value_2" class="gt_row gt_left">0.006</td></tr>
+<td headers="p_value_2" class="gt_row gt_left">0.007</td></tr>
     <tr><td headers="variable" class="gt_row gt_center">No. benign breast biopsies</td>
 <td headers="beta_1" class="gt_row gt_right">-0.00 (-0.32, 0.31)</td>
 <td headers="p_value_1" class="gt_row gt_left">0.977</td>
 <td headers="r.squared" class="gt_row gt_left">&lt;0.01</td>
-<td headers="beta_2" class="gt_row gt_right">-0.08 (-0.40, 0.23)</td>
-<td headers="p_value_2" class="gt_row gt_left">0.609</td></tr>
+<td headers="beta_2" class="gt_row gt_right">-0.08 (-0.39, 0.23)</td>
+<td headers="p_value_2" class="gt_row gt_left">0.611</td></tr>
     <tr><td headers="variable" class="gt_row gt_center">Age at menarche (years)</td>
 <td headers="beta_1" class="gt_row gt_right">0.01 (-0.03, 0.05)</td>
 <td headers="p_value_1" class="gt_row gt_left">0.643</td>
 <td headers="r.squared" class="gt_row gt_left">&lt;0.01</td>
-<td headers="beta_2" class="gt_row gt_right">0.00 (-0.04, 0.04)</td>
-<td headers="p_value_2" class="gt_row gt_left">0.962</td></tr>
+<td headers="beta_2" class="gt_row gt_right">0.00 (-0.03, 0.04)</td>
+<td headers="p_value_2" class="gt_row gt_left">0.884</td></tr>
+    <tr><td headers="variable" class="gt_row gt_center">Parity</td>
+<td headers="beta_1" class="gt_row gt_right">0.12 (-0.03, 0.28)</td>
+<td headers="p_value_1" class="gt_row gt_left">0.129</td>
+<td headers="r.squared" class="gt_row gt_left">&lt;0.01</td>
+<td headers="beta_2" class="gt_row gt_right">0.25 (-0.07, 0.58)</td>
+<td headers="p_value_2" class="gt_row gt_left">0.125</td></tr>
     <tr><td headers="variable" class="gt_row gt_center">Age at first pregnancy (years)</td>
 <td headers="beta_1" class="gt_row gt_right">-0.00 (-0.01, 0.01)</td>
 <td headers="p_value_1" class="gt_row gt_left">0.512</td>
 <td headers="r.squared" class="gt_row gt_left">&lt;0.01</td>
 <td headers="beta_2" class="gt_row gt_right">-0.01 (-0.02, 0.01)</td>
-<td headers="p_value_2" class="gt_row gt_left">0.323</td></tr>
+<td headers="p_value_2" class="gt_row gt_left">0.314</td></tr>
     <tr><td headers="variable" class="gt_row gt_center">No. 1st-degree relatives with breast cancer</td>
 <td headers="beta_1" class="gt_row gt_right">0.13 (-0.02, 0.27)</td>
 <td headers="p_value_1" class="gt_row gt_left">0.083</td>
 <td headers="r.squared" class="gt_row gt_left">&lt;0.01</td>
 <td headers="beta_2" class="gt_row gt_right">0.12 (-0.02, 0.26)</td>
-<td headers="p_value_2" class="gt_row gt_left">0.103</td></tr>
+<td headers="p_value_2" class="gt_row gt_left">0.096</td></tr>
     <tr><td headers="variable" class="gt_row gt_center">Mammographic density</td>
 <td headers="beta_1" class="gt_row gt_right">0.01 (0.01, 0.02)</td>
 <td headers="p_value_1" class="gt_row gt_left">&lt;0.001</td>
@@ -3048,7 +3060,11 @@ Number of participants: 616</code></pre>
 <td headers="beta_2" class="gt_row gt_right">0.02 (0.01, 0.02)</td>
 <td headers="p_value_2" class="gt_row gt_left">&lt;0.001</td></tr>
   </tbody>
-  
+  <tfoot>
+    <tr class="gt_footnotes">
+      <td class="gt_footnote" colspan="6"> Multivariable R² = 0.072</td>
+    </tr>
+  </tfoot>
 </table>
 </div>
 </div>
@@ -3608,64 +3624,65 @@ Number of participants: 616</code></pre>
 <span id="cb38-26"><a href="#cb38-26" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Categories have to be such that if cases are represented in the category - there has to be a control represented</span></span>
 <span id="cb38-27"><a href="#cb38-27" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Should we make these categories different for cumulus subset or no? Gut check says no but could make categories larger for the whole study pop if so?</span></span>
 <span id="cb38-28"><a href="#cb38-28" aria-hidden="true" tabindex="-1"></a>  scores_and_rf_data<span class="sc">$</span>output <span class="ot">&lt;-</span> scores_and_rf_data<span class="sc">$</span>output <span class="sc">|&gt;</span></span>
-<span id="cb38-29"><a href="#cb38-29" aria-hidden="true" tabindex="-1"></a>    <span class="fu">merge</span>(cancer.free.time, <span class="at">by =</span> <span class="st">"TCode"</span>, <span class="at">all.x =</span> T) <span class="sc">|&gt;</span></span>
-<span id="cb38-30"><a href="#cb38-30" aria-hidden="true" tabindex="-1"></a>    <span class="fu">merge</span>(year.entry, <span class="at">by =</span> <span class="st">"TCode"</span>, <span class="at">all.x =</span> T) <span class="sc">|&gt;</span></span>
-<span id="cb38-31"><a href="#cb38-31" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
-<span id="cb38-32"><a href="#cb38-32" aria-hidden="true" tabindex="-1"></a>      </span>
-<span id="cb38-33"><a href="#cb38-33" aria-hidden="true" tabindex="-1"></a>      <span class="co"># Age at mammogram</span></span>
-<span id="cb38-34"><a href="#cb38-34" aria-hidden="true" tabindex="-1"></a>      <span class="at">match.mammo.age =</span> <span class="fu">cut</span>(study.entry.age, <span class="at">breaks =</span> <span class="fu">seq</span>(<span class="dv">10</span>, <span class="dv">110</span>, <span class="at">by =</span> <span class="dv">5</span>)),</span>
-<span id="cb38-35"><a href="#cb38-35" aria-hidden="true" tabindex="-1"></a>      <span class="at">match.mammo.age =</span> <span class="fu">if_else</span>(match.mammo.age <span class="sc">==</span> <span class="st">"(40,45]"</span>, <span class="st">"(45,50]"</span>, match.mammo.age),</span>
-<span id="cb38-36"><a href="#cb38-36" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb38-37"><a href="#cb38-37" aria-hidden="true" tabindex="-1"></a>      </span>
-<span id="cb38-38"><a href="#cb38-38" aria-hidden="true" tabindex="-1"></a>      <span class="co"># Age at entry</span></span>
-<span id="cb38-39"><a href="#cb38-39" aria-hidden="true" tabindex="-1"></a>      <span class="at">match.entry.age =</span> <span class="fu">cut</span>(AgeatEntry, <span class="at">breaks =</span> <span class="fu">seq</span>(<span class="dv">10</span>, <span class="dv">110</span>, <span class="at">by =</span> <span class="dv">5</span>)),</span>
-<span id="cb38-40"><a href="#cb38-40" aria-hidden="true" tabindex="-1"></a>      <span class="at">match.entry.age =</span> <span class="fu">if_else</span>(match.entry.age <span class="sc">==</span> <span class="st">"(30,35]"</span>, <span class="st">"(35,40]"</span>, match.entry.age),</span>
-<span id="cb38-41"><a href="#cb38-41" aria-hidden="true" tabindex="-1"></a>      </span>
-<span id="cb38-42"><a href="#cb38-42" aria-hidden="true" tabindex="-1"></a>      <span class="co"># Ethnicity</span></span>
-<span id="cb38-43"><a href="#cb38-43" aria-hidden="true" tabindex="-1"></a>      <span class="at">match.ethnicity =</span> <span class="fu">as.factor</span>(<span class="fu">if_else</span>(ethnew5 <span class="sc">==</span> <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>)),</span>
-<span id="cb38-44"><a href="#cb38-44" aria-hidden="true" tabindex="-1"></a>      </span>
-<span id="cb38-45"><a href="#cb38-45" aria-hidden="true" tabindex="-1"></a>      <span class="co"># Year of entry</span></span>
-<span id="cb38-46"><a href="#cb38-46" aria-hidden="true" tabindex="-1"></a>      <span class="at">match.year.entry =</span> <span class="fu">case_when</span>(</span>
-<span id="cb38-47"><a href="#cb38-47" aria-hidden="true" tabindex="-1"></a>        Entry <span class="sc">&lt;=</span> <span class="dv">2005</span> <span class="sc">~</span> <span class="st">"&lt;=2005"</span>,</span>
-<span id="cb38-48"><a href="#cb38-48" aria-hidden="true" tabindex="-1"></a>        Entry <span class="sc">&gt;=</span> <span class="dv">2008</span> <span class="sc">~</span> <span class="st">"&gt;=2008"</span>,</span>
-<span id="cb38-49"><a href="#cb38-49" aria-hidden="true" tabindex="-1"></a>        <span class="cn">TRUE</span> <span class="sc">~</span> <span class="fu">as.character</span>(Entry)</span>
-<span id="cb38-50"><a href="#cb38-50" aria-hidden="true" tabindex="-1"></a>      ),</span>
-<span id="cb38-51"><a href="#cb38-51" aria-hidden="true" tabindex="-1"></a>      </span>
-<span id="cb38-52"><a href="#cb38-52" aria-hidden="true" tabindex="-1"></a>      <span class="co"># Cancer free time from entry</span></span>
-<span id="cb38-53"><a href="#cb38-53" aria-hidden="true" tabindex="-1"></a>      <span class="at">match.cancer.free.time =</span> <span class="fu">case_when</span>(</span>
-<span id="cb38-54"><a href="#cb38-54" aria-hidden="true" tabindex="-1"></a>        cancer.free.time <span class="sc">&lt;</span> <span class="dv">10</span> <span class="sc">~</span> <span class="st">"[0,10)"</span>,</span>
-<span id="cb38-55"><a href="#cb38-55" aria-hidden="true" tabindex="-1"></a>        cancer.free.time <span class="sc">&lt;</span><span class="dv">13</span> <span class="sc">~</span> <span class="st">"[10,13)"</span>,</span>
-<span id="cb38-56"><a href="#cb38-56" aria-hidden="true" tabindex="-1"></a>        <span class="cn">TRUE</span> <span class="sc">~</span> <span class="st">"[13,16)"</span></span>
-<span id="cb38-57"><a href="#cb38-57" aria-hidden="true" tabindex="-1"></a>      )</span>
-<span id="cb38-58"><a href="#cb38-58" aria-hidden="true" tabindex="-1"></a>      </span>
-<span id="cb38-59"><a href="#cb38-59" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span></span>
-<span id="cb38-60"><a href="#cb38-60" aria-hidden="true" tabindex="-1"></a>    <span class="fu">filter</span>(time.of.onset <span class="sc">&gt;</span> <span class="dv">1</span>)</span>
-<span id="cb38-61"><a href="#cb38-61" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb38-62"><a href="#cb38-62" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(score <span class="cf">in</span> <span class="fu">c</span>(<span class="st">"gail_score"</span>, <span class="st">"mirai_score_5y"</span>)){</span>
-<span id="cb38-63"><a href="#cb38-63" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb38-64"><a href="#cb38-64" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Fit model calculating score using matching variables</span></span>
-<span id="cb38-65"><a href="#cb38-65" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Fitting model on controls that have the score measured</span></span>
-<span id="cb38-66"><a href="#cb38-66" aria-hidden="true" tabindex="-1"></a>    model1 <span class="ot">&lt;-</span> <span class="fu">lm</span>(<span class="fu">as.formula</span>(<span class="fu">paste0</span>(<span class="st">"qlogis("</span>, score, <span class="st">"/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age"</span>)), <span class="at">data =</span> scores_and_rf_data<span class="sc">$</span>output[<span class="sc">!</span><span class="fu">is.na</span>(scores_and_rf_data<span class="sc">$</span>output[[score]]) <span class="sc">&amp;</span> scores_and_rf_data<span class="sc">$</span>output<span class="sc">$</span>cc_status <span class="sc">==</span> <span class="dv">0</span>,])</span>
-<span id="cb38-67"><a href="#cb38-67" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb38-68"><a href="#cb38-68" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Predict score on whole dataset</span></span>
-<span id="cb38-69"><a href="#cb38-69" aria-hidden="true" tabindex="-1"></a>    scores_and_rf_data<span class="sc">$</span>output<span class="sc">$</span>model1_pred <span class="ot">&lt;-</span> <span class="cn">NA</span></span>
-<span id="cb38-70"><a href="#cb38-70" aria-hidden="true" tabindex="-1"></a>    scores_and_rf_data<span class="sc">$</span>output<span class="sc">$</span>model1_pred[<span class="sc">!</span><span class="fu">is.na</span>(scores_and_rf_data<span class="sc">$</span>output[[score]])] <span class="ot">&lt;-</span> <span class="fu">predict</span>(model1, scores_and_rf_data<span class="sc">$</span>output[<span class="sc">!</span><span class="fu">is.na</span>(scores_and_rf_data<span class="sc">$</span>output[[score]]),])</span>
-<span id="cb38-71"><a href="#cb38-71" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb38-72"><a href="#cb38-72" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Calculate residual</span></span>
-<span id="cb38-73"><a href="#cb38-73" aria-hidden="true" tabindex="-1"></a>    scores_and_rf_data<span class="sc">$</span>output<span class="sc">$</span>model1_res <span class="ot">&lt;-</span> <span class="fu">qlogis</span>(scores_and_rf_data<span class="sc">$</span>output[[score]]<span class="sc">/</span><span class="dv">100</span>) <span class="sc">-</span> scores_and_rf_data<span class="sc">$</span>output<span class="sc">$</span>model1_pred</span>
-<span id="cb38-74"><a href="#cb38-74" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb38-75"><a href="#cb38-75" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Calculate AUC</span></span>
-<span id="cb38-76"><a href="#cb38-76" aria-hidden="true" tabindex="-1"></a>    auc <span class="ot">&lt;-</span> <span class="fu">auc</span>(<span class="fu">roc</span>(scores_and_rf_data<span class="sc">$</span>output<span class="sc">$</span>cc_status[<span class="sc">!</span><span class="fu">is.na</span>(scores_and_rf_data<span class="sc">$</span>output[[score]])], scores_and_rf_data<span class="sc">$</span>output<span class="sc">$</span>model1_res[<span class="sc">!</span><span class="fu">is.na</span>(scores_and_rf_data<span class="sc">$</span>output[[score]])]))</span>
-<span id="cb38-77"><a href="#cb38-77" aria-hidden="true" tabindex="-1"></a>    auc_ci <span class="ot">&lt;-</span> <span class="fu">unname</span>(<span class="fu">ci.auc</span>(scores_and_rf_data<span class="sc">$</span>output<span class="sc">$</span>cc_status[<span class="sc">!</span><span class="fu">is.na</span>(scores_and_rf_data<span class="sc">$</span>output[[score]])], scores_and_rf_data<span class="sc">$</span>output<span class="sc">$</span>model1_res[<span class="sc">!</span><span class="fu">is.na</span>(scores_and_rf_data<span class="sc">$</span>output[[score]])], <span class="at">method =</span> <span class="st">"bootstrap"</span>))</span>
-<span id="cb38-78"><a href="#cb38-78" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb38-79"><a href="#cb38-79" aria-hidden="true" tabindex="-1"></a>    row <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="fu">case_when</span>(score <span class="sc">==</span> <span class="st">"gail_score"</span> <span class="sc">~</span> <span class="st">"GAIL"</span>, score <span class="sc">==</span> <span class="st">"mirai_score_5y"</span> <span class="sc">~</span> <span class="st">"Mirai"</span>, <span class="cn">TRUE</span> <span class="sc">~</span> <span class="st">"Cumulus"</span>), years, <span class="fu">paste0</span>(<span class="fu">sprintf</span>(<span class="st">"%.2f"</span>, auc), <span class="st">" ("</span>, <span class="fu">sprintf</span>(<span class="st">"%.2f"</span>,auc_ci[<span class="dv">1</span>]), <span class="st">", "</span>, <span class="fu">sprintf</span>(<span class="st">"%.2f"</span>, auc_ci[<span class="dv">3</span>]), <span class="st">")"</span>))</span>
-<span id="cb38-80"><a href="#cb38-80" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb38-81"><a href="#cb38-81" aria-hidden="true" tabindex="-1"></a>    supp_table3[<span class="fu">nrow</span>(supp_table3)<span class="sc">+</span><span class="dv">1</span>,] <span class="ot">&lt;-</span> row</span>
-<span id="cb38-82"><a href="#cb38-82" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb38-29"><a href="#cb38-29" aria-hidden="true" tabindex="-1"></a>    <span class="fu">filter</span>(<span class="fu">is.finite</span>(time.of.onset) <span class="sc">|</span> cc_status <span class="sc">==</span> <span class="dv">0</span>) <span class="sc">|&gt;</span></span>
+<span id="cb38-30"><a href="#cb38-30" aria-hidden="true" tabindex="-1"></a>    <span class="fu">merge</span>(cancer.free.time, <span class="at">by =</span> <span class="st">"TCode"</span>, <span class="at">all.x =</span> T) <span class="sc">|&gt;</span></span>
+<span id="cb38-31"><a href="#cb38-31" aria-hidden="true" tabindex="-1"></a>    <span class="fu">merge</span>(year.entry, <span class="at">by =</span> <span class="st">"TCode"</span>, <span class="at">all.x =</span> T) <span class="sc">|&gt;</span></span>
+<span id="cb38-32"><a href="#cb38-32" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(</span>
+<span id="cb38-33"><a href="#cb38-33" aria-hidden="true" tabindex="-1"></a>      </span>
+<span id="cb38-34"><a href="#cb38-34" aria-hidden="true" tabindex="-1"></a>      <span class="co"># Age at mammogram</span></span>
+<span id="cb38-35"><a href="#cb38-35" aria-hidden="true" tabindex="-1"></a>      <span class="at">match.mammo.age =</span> <span class="fu">cut</span>(study.entry.age, <span class="at">breaks =</span> <span class="fu">seq</span>(<span class="dv">10</span>, <span class="dv">110</span>, <span class="at">by =</span> <span class="dv">5</span>)),</span>
+<span id="cb38-36"><a href="#cb38-36" aria-hidden="true" tabindex="-1"></a>      <span class="at">match.mammo.age =</span> <span class="fu">if_else</span>(match.mammo.age <span class="sc">==</span> <span class="st">"(40,45]"</span>, <span class="st">"(45,50]"</span>, match.mammo.age),</span>
+<span id="cb38-37"><a href="#cb38-37" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb38-38"><a href="#cb38-38" aria-hidden="true" tabindex="-1"></a>      </span>
+<span id="cb38-39"><a href="#cb38-39" aria-hidden="true" tabindex="-1"></a>      <span class="co"># Age at entry</span></span>
+<span id="cb38-40"><a href="#cb38-40" aria-hidden="true" tabindex="-1"></a>      <span class="at">match.entry.age =</span> <span class="fu">cut</span>(AgeatEntry, <span class="at">breaks =</span> <span class="fu">seq</span>(<span class="dv">10</span>, <span class="dv">110</span>, <span class="at">by =</span> <span class="dv">5</span>)),</span>
+<span id="cb38-41"><a href="#cb38-41" aria-hidden="true" tabindex="-1"></a>      <span class="at">match.entry.age =</span> <span class="fu">if_else</span>(match.entry.age <span class="sc">==</span> <span class="st">"(30,35]"</span>, <span class="st">"(35,40]"</span>, match.entry.age),</span>
+<span id="cb38-42"><a href="#cb38-42" aria-hidden="true" tabindex="-1"></a>      </span>
+<span id="cb38-43"><a href="#cb38-43" aria-hidden="true" tabindex="-1"></a>      <span class="co"># Ethnicity</span></span>
+<span id="cb38-44"><a href="#cb38-44" aria-hidden="true" tabindex="-1"></a>      <span class="at">match.ethnicity =</span> <span class="fu">as.factor</span>(<span class="fu">if_else</span>(ethnew5 <span class="sc">==</span> <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>)),</span>
+<span id="cb38-45"><a href="#cb38-45" aria-hidden="true" tabindex="-1"></a>      </span>
+<span id="cb38-46"><a href="#cb38-46" aria-hidden="true" tabindex="-1"></a>      <span class="co"># Year of entry</span></span>
+<span id="cb38-47"><a href="#cb38-47" aria-hidden="true" tabindex="-1"></a>      <span class="at">match.year.entry =</span> <span class="fu">case_when</span>(</span>
+<span id="cb38-48"><a href="#cb38-48" aria-hidden="true" tabindex="-1"></a>        Entry <span class="sc">&lt;=</span> <span class="dv">2005</span> <span class="sc">~</span> <span class="st">"&lt;=2005"</span>,</span>
+<span id="cb38-49"><a href="#cb38-49" aria-hidden="true" tabindex="-1"></a>        Entry <span class="sc">&gt;=</span> <span class="dv">2008</span> <span class="sc">~</span> <span class="st">"&gt;=2008"</span>,</span>
+<span id="cb38-50"><a href="#cb38-50" aria-hidden="true" tabindex="-1"></a>        <span class="cn">TRUE</span> <span class="sc">~</span> <span class="fu">as.character</span>(Entry)</span>
+<span id="cb38-51"><a href="#cb38-51" aria-hidden="true" tabindex="-1"></a>      ),</span>
+<span id="cb38-52"><a href="#cb38-52" aria-hidden="true" tabindex="-1"></a>      </span>
+<span id="cb38-53"><a href="#cb38-53" aria-hidden="true" tabindex="-1"></a>      <span class="co"># Cancer free time from entry</span></span>
+<span id="cb38-54"><a href="#cb38-54" aria-hidden="true" tabindex="-1"></a>      <span class="at">match.cancer.free.time =</span> <span class="fu">case_when</span>(</span>
+<span id="cb38-55"><a href="#cb38-55" aria-hidden="true" tabindex="-1"></a>        cancer.free.time <span class="sc">&lt;</span> <span class="dv">10</span> <span class="sc">~</span> <span class="st">"[0,10)"</span>,</span>
+<span id="cb38-56"><a href="#cb38-56" aria-hidden="true" tabindex="-1"></a>        cancer.free.time <span class="sc">&lt;</span><span class="dv">13</span> <span class="sc">~</span> <span class="st">"[10,13)"</span>,</span>
+<span id="cb38-57"><a href="#cb38-57" aria-hidden="true" tabindex="-1"></a>        <span class="cn">TRUE</span> <span class="sc">~</span> <span class="st">"[13,16)"</span></span>
+<span id="cb38-58"><a href="#cb38-58" aria-hidden="true" tabindex="-1"></a>      )</span>
+<span id="cb38-59"><a href="#cb38-59" aria-hidden="true" tabindex="-1"></a>      </span>
+<span id="cb38-60"><a href="#cb38-60" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">|&gt;</span></span>
+<span id="cb38-61"><a href="#cb38-61" aria-hidden="true" tabindex="-1"></a>    <span class="fu">filter</span>(time.of.onset <span class="sc">&gt;</span> <span class="dv">1</span>)</span>
+<span id="cb38-62"><a href="#cb38-62" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb38-63"><a href="#cb38-63" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(score <span class="cf">in</span> <span class="fu">c</span>(<span class="st">"gail_score"</span>, <span class="st">"mirai_score_5y"</span>)){</span>
+<span id="cb38-64"><a href="#cb38-64" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb38-65"><a href="#cb38-65" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Fit model calculating score using matching variables</span></span>
+<span id="cb38-66"><a href="#cb38-66" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Fitting model on controls that have the score measured</span></span>
+<span id="cb38-67"><a href="#cb38-67" aria-hidden="true" tabindex="-1"></a>    model1 <span class="ot">&lt;-</span> <span class="fu">lm</span>(<span class="fu">as.formula</span>(<span class="fu">paste0</span>(<span class="st">"qlogis("</span>, score, <span class="st">"/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age"</span>)), <span class="at">data =</span> scores_and_rf_data<span class="sc">$</span>output[<span class="sc">!</span><span class="fu">is.na</span>(scores_and_rf_data<span class="sc">$</span>output[[score]]) <span class="sc">&amp;</span> scores_and_rf_data<span class="sc">$</span>output<span class="sc">$</span>cc_status <span class="sc">==</span> <span class="dv">0</span>,])</span>
+<span id="cb38-68"><a href="#cb38-68" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb38-69"><a href="#cb38-69" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Predict score on whole dataset</span></span>
+<span id="cb38-70"><a href="#cb38-70" aria-hidden="true" tabindex="-1"></a>    scores_and_rf_data<span class="sc">$</span>output<span class="sc">$</span>model1_pred <span class="ot">&lt;-</span> <span class="cn">NA</span></span>
+<span id="cb38-71"><a href="#cb38-71" aria-hidden="true" tabindex="-1"></a>    scores_and_rf_data<span class="sc">$</span>output<span class="sc">$</span>model1_pred[<span class="sc">!</span><span class="fu">is.na</span>(scores_and_rf_data<span class="sc">$</span>output[[score]])] <span class="ot">&lt;-</span> <span class="fu">predict</span>(model1, scores_and_rf_data<span class="sc">$</span>output[<span class="sc">!</span><span class="fu">is.na</span>(scores_and_rf_data<span class="sc">$</span>output[[score]]),])</span>
+<span id="cb38-72"><a href="#cb38-72" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb38-73"><a href="#cb38-73" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Calculate residual</span></span>
+<span id="cb38-74"><a href="#cb38-74" aria-hidden="true" tabindex="-1"></a>    scores_and_rf_data<span class="sc">$</span>output<span class="sc">$</span>model1_res <span class="ot">&lt;-</span> <span class="fu">qlogis</span>(scores_and_rf_data<span class="sc">$</span>output[[score]]<span class="sc">/</span><span class="dv">100</span>) <span class="sc">-</span> scores_and_rf_data<span class="sc">$</span>output<span class="sc">$</span>model1_pred</span>
+<span id="cb38-75"><a href="#cb38-75" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb38-76"><a href="#cb38-76" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Calculate AUC</span></span>
+<span id="cb38-77"><a href="#cb38-77" aria-hidden="true" tabindex="-1"></a>    auc <span class="ot">&lt;-</span> <span class="fu">auc</span>(<span class="fu">roc</span>(scores_and_rf_data<span class="sc">$</span>output<span class="sc">$</span>cc_status[<span class="sc">!</span><span class="fu">is.na</span>(scores_and_rf_data<span class="sc">$</span>output[[score]])], scores_and_rf_data<span class="sc">$</span>output<span class="sc">$</span>model1_res[<span class="sc">!</span><span class="fu">is.na</span>(scores_and_rf_data<span class="sc">$</span>output[[score]])]))</span>
+<span id="cb38-78"><a href="#cb38-78" aria-hidden="true" tabindex="-1"></a>    auc_ci <span class="ot">&lt;-</span> <span class="fu">unname</span>(<span class="fu">ci.auc</span>(scores_and_rf_data<span class="sc">$</span>output<span class="sc">$</span>cc_status[<span class="sc">!</span><span class="fu">is.na</span>(scores_and_rf_data<span class="sc">$</span>output[[score]])], scores_and_rf_data<span class="sc">$</span>output<span class="sc">$</span>model1_res[<span class="sc">!</span><span class="fu">is.na</span>(scores_and_rf_data<span class="sc">$</span>output[[score]])], <span class="at">method =</span> <span class="st">"bootstrap"</span>))</span>
+<span id="cb38-79"><a href="#cb38-79" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb38-80"><a href="#cb38-80" aria-hidden="true" tabindex="-1"></a>    row <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="fu">case_when</span>(score <span class="sc">==</span> <span class="st">"gail_score"</span> <span class="sc">~</span> <span class="st">"GAIL"</span>, score <span class="sc">==</span> <span class="st">"mirai_score_5y"</span> <span class="sc">~</span> <span class="st">"Mirai"</span>, <span class="cn">TRUE</span> <span class="sc">~</span> <span class="st">"Cumulus"</span>), years, <span class="fu">paste0</span>(<span class="fu">sprintf</span>(<span class="st">"%.2f"</span>, auc), <span class="st">" ("</span>, <span class="fu">sprintf</span>(<span class="st">"%.2f"</span>,auc_ci[<span class="dv">1</span>]), <span class="st">", "</span>, <span class="fu">sprintf</span>(<span class="st">"%.2f"</span>, auc_ci[<span class="dv">3</span>]), <span class="st">")"</span>))</span>
+<span id="cb38-81"><a href="#cb38-81" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb38-82"><a href="#cb38-82" aria-hidden="true" tabindex="-1"></a>    supp_table3[<span class="fu">nrow</span>(supp_table3)<span class="sc">+</span><span class="dv">1</span>,] <span class="ot">&lt;-</span> row</span>
 <span id="cb38-83"><a href="#cb38-83" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb38-84"><a href="#cb38-84" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb38-85"><a href="#cb38-85" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb38-86"><a href="#cb38-86" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb38-84"><a href="#cb38-84" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb38-85"><a href="#cb38-85" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb38-86"><a href="#cb38-86" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-87"><a href="#cb38-87" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Checking CSV data file: 
 //rds/data/dge/dudge/shared/GENERATIONS/CoreData/v20230927/RDSRiskFactors.csv
@@ -4104,23 +4121,23 @@ Setting direction: controls &lt; cases</code></pre>
 <span id="cb80-4"><a href="#cb80-4" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb80-5"><a href="#cb80-5" aria-hidden="true" tabindex="-1"></a>supp_table3_gt</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
-<div id="zqlwkltecc" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#zqlwkltecc table {
+<div id="ltfxeyuyrd" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#ltfxeyuyrd table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#zqlwkltecc thead, #zqlwkltecc tbody, #zqlwkltecc tfoot, #zqlwkltecc tr, #zqlwkltecc td, #zqlwkltecc th {
+#ltfxeyuyrd thead, #ltfxeyuyrd tbody, #ltfxeyuyrd tfoot, #ltfxeyuyrd tr, #ltfxeyuyrd td, #ltfxeyuyrd th {
   border-style: none;
 }
 
-#zqlwkltecc p {
+#ltfxeyuyrd p {
   margin: 0;
   padding: 0;
 }
 
-#zqlwkltecc .gt_table {
+#ltfxeyuyrd .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -4146,12 +4163,12 @@ Setting direction: controls &lt; cases</code></pre>
   border-left-color: #D3D3D3;
 }
 
-#zqlwkltecc .gt_caption {
+#ltfxeyuyrd .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#zqlwkltecc .gt_title {
+#ltfxeyuyrd .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -4163,7 +4180,7 @@ Setting direction: controls &lt; cases</code></pre>
   border-bottom-width: 0;
 }
 
-#zqlwkltecc .gt_subtitle {
+#ltfxeyuyrd .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -4175,7 +4192,7 @@ Setting direction: controls &lt; cases</code></pre>
   border-top-width: 0;
 }
 
-#zqlwkltecc .gt_heading {
+#ltfxeyuyrd .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -4187,13 +4204,13 @@ Setting direction: controls &lt; cases</code></pre>
   border-right-color: #D3D3D3;
 }
 
-#zqlwkltecc .gt_bottom_border {
+#ltfxeyuyrd .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#zqlwkltecc .gt_col_headings {
+#ltfxeyuyrd .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -4208,7 +4225,7 @@ Setting direction: controls &lt; cases</code></pre>
   border-right-color: #D3D3D3;
 }
 
-#zqlwkltecc .gt_col_heading {
+#ltfxeyuyrd .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4228,7 +4245,7 @@ Setting direction: controls &lt; cases</code></pre>
   overflow-x: hidden;
 }
 
-#zqlwkltecc .gt_column_spanner_outer {
+#ltfxeyuyrd .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4240,15 +4257,15 @@ Setting direction: controls &lt; cases</code></pre>
   padding-right: 4px;
 }
 
-#zqlwkltecc .gt_column_spanner_outer:first-child {
+#ltfxeyuyrd .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#zqlwkltecc .gt_column_spanner_outer:last-child {
+#ltfxeyuyrd .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#zqlwkltecc .gt_column_spanner {
+#ltfxeyuyrd .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -4260,11 +4277,11 @@ Setting direction: controls &lt; cases</code></pre>
   width: 100%;
 }
 
-#zqlwkltecc .gt_spanner_row {
+#ltfxeyuyrd .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#zqlwkltecc .gt_group_heading {
+#ltfxeyuyrd .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4290,7 +4307,7 @@ Setting direction: controls &lt; cases</code></pre>
   text-align: left;
 }
 
-#zqlwkltecc .gt_empty_group_heading {
+#ltfxeyuyrd .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -4305,15 +4322,15 @@ Setting direction: controls &lt; cases</code></pre>
   vertical-align: middle;
 }
 
-#zqlwkltecc .gt_from_md > :first-child {
+#ltfxeyuyrd .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#zqlwkltecc .gt_from_md > :last-child {
+#ltfxeyuyrd .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#zqlwkltecc .gt_row {
+#ltfxeyuyrd .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4332,7 +4349,7 @@ Setting direction: controls &lt; cases</code></pre>
   overflow-x: hidden;
 }
 
-#zqlwkltecc .gt_stub {
+#ltfxeyuyrd .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4345,7 +4362,7 @@ Setting direction: controls &lt; cases</code></pre>
   padding-right: 5px;
 }
 
-#zqlwkltecc .gt_stub_row_group {
+#ltfxeyuyrd .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4359,15 +4376,15 @@ Setting direction: controls &lt; cases</code></pre>
   vertical-align: top;
 }
 
-#zqlwkltecc .gt_row_group_first td {
+#ltfxeyuyrd .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#zqlwkltecc .gt_row_group_first th {
+#ltfxeyuyrd .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#zqlwkltecc .gt_summary_row {
+#ltfxeyuyrd .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -4377,16 +4394,16 @@ Setting direction: controls &lt; cases</code></pre>
   padding-right: 5px;
 }
 
-#zqlwkltecc .gt_first_summary_row {
+#ltfxeyuyrd .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#zqlwkltecc .gt_first_summary_row.thick {
+#ltfxeyuyrd .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#zqlwkltecc .gt_last_summary_row {
+#ltfxeyuyrd .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4396,7 +4413,7 @@ Setting direction: controls &lt; cases</code></pre>
   border-bottom-color: #D3D3D3;
 }
 
-#zqlwkltecc .gt_grand_summary_row {
+#ltfxeyuyrd .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -4406,7 +4423,7 @@ Setting direction: controls &lt; cases</code></pre>
   padding-right: 5px;
 }
 
-#zqlwkltecc .gt_first_grand_summary_row {
+#ltfxeyuyrd .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4416,7 +4433,7 @@ Setting direction: controls &lt; cases</code></pre>
   border-top-color: #D3D3D3;
 }
 
-#zqlwkltecc .gt_last_grand_summary_row_top {
+#ltfxeyuyrd .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4426,11 +4443,11 @@ Setting direction: controls &lt; cases</code></pre>
   border-bottom-color: #D3D3D3;
 }
 
-#zqlwkltecc .gt_striped {
+#ltfxeyuyrd .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#zqlwkltecc .gt_table_body {
+#ltfxeyuyrd .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -4439,7 +4456,7 @@ Setting direction: controls &lt; cases</code></pre>
   border-bottom-color: #D3D3D3;
 }
 
-#zqlwkltecc .gt_footnotes {
+#ltfxeyuyrd .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -4453,7 +4470,7 @@ Setting direction: controls &lt; cases</code></pre>
   border-right-color: #D3D3D3;
 }
 
-#zqlwkltecc .gt_footnote {
+#ltfxeyuyrd .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -4462,7 +4479,7 @@ Setting direction: controls &lt; cases</code></pre>
   padding-right: 5px;
 }
 
-#zqlwkltecc .gt_sourcenotes {
+#ltfxeyuyrd .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -4476,7 +4493,7 @@ Setting direction: controls &lt; cases</code></pre>
   border-right-color: #D3D3D3;
 }
 
-#zqlwkltecc .gt_sourcenote {
+#ltfxeyuyrd .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -4484,72 +4501,72 @@ Setting direction: controls &lt; cases</code></pre>
   padding-right: 5px;
 }
 
-#zqlwkltecc .gt_left {
+#ltfxeyuyrd .gt_left {
   text-align: left;
 }
 
-#zqlwkltecc .gt_center {
+#ltfxeyuyrd .gt_center {
   text-align: center;
 }
 
-#zqlwkltecc .gt_right {
+#ltfxeyuyrd .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#zqlwkltecc .gt_font_normal {
+#ltfxeyuyrd .gt_font_normal {
   font-weight: normal;
 }
 
-#zqlwkltecc .gt_font_bold {
+#ltfxeyuyrd .gt_font_bold {
   font-weight: bold;
 }
 
-#zqlwkltecc .gt_font_italic {
+#ltfxeyuyrd .gt_font_italic {
   font-style: italic;
 }
 
-#zqlwkltecc .gt_super {
+#ltfxeyuyrd .gt_super {
   font-size: 65%;
 }
 
-#zqlwkltecc .gt_footnote_marks {
+#ltfxeyuyrd .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#zqlwkltecc .gt_asterisk {
+#ltfxeyuyrd .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#zqlwkltecc .gt_indent_1 {
+#ltfxeyuyrd .gt_indent_1 {
   text-indent: 5px;
 }
 
-#zqlwkltecc .gt_indent_2 {
+#ltfxeyuyrd .gt_indent_2 {
   text-indent: 10px;
 }
 
-#zqlwkltecc .gt_indent_3 {
+#ltfxeyuyrd .gt_indent_3 {
   text-indent: 15px;
 }
 
-#zqlwkltecc .gt_indent_4 {
+#ltfxeyuyrd .gt_indent_4 {
   text-indent: 20px;
 }
 
-#zqlwkltecc .gt_indent_5 {
+#ltfxeyuyrd .gt_indent_5 {
   text-indent: 25px;
 }
 
-#zqlwkltecc .katex-display {
+#ltfxeyuyrd .katex-display {
   display: inline-flex !important;
   margin-bottom: 0.75em !important;
 }
 
-#zqlwkltecc div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+#ltfxeyuyrd div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
   height: 0px !important;
 }
 </style>
@@ -4563,19 +4580,19 @@ Setting direction: controls &lt; cases</code></pre>
   </thead>
   <tbody class="gt_table_body">
     <tr><td headers="years" class="gt_row gt_right">1</td>
-<td headers="GAIL" class="gt_row gt_right">0.57 (0.53, 0.62)</td>
+<td headers="GAIL" class="gt_row gt_right">0.58 (0.53, 0.62)</td>
 <td headers="Mirai" class="gt_row gt_right">0.76 (0.72, 0.80)</td></tr>
     <tr><td headers="years" class="gt_row gt_right">2</td>
-<td headers="GAIL" class="gt_row gt_right">0.57 (0.52, 0.61)</td>
-<td headers="Mirai" class="gt_row gt_right">0.76 (0.72, 0.80)</td></tr>
+<td headers="GAIL" class="gt_row gt_right">0.57 (0.52, 0.62)</td>
+<td headers="Mirai" class="gt_row gt_right">0.76 (0.71, 0.79)</td></tr>
     <tr><td headers="years" class="gt_row gt_right">3</td>
-<td headers="GAIL" class="gt_row gt_right">0.57 (0.52, 0.61)</td>
-<td headers="Mirai" class="gt_row gt_right">0.76 (0.72, 0.80)</td></tr>
+<td headers="GAIL" class="gt_row gt_right">0.57 (0.52, 0.62)</td>
+<td headers="Mirai" class="gt_row gt_right">0.76 (0.72, 0.79)</td></tr>
     <tr><td headers="years" class="gt_row gt_right">4</td>
-<td headers="GAIL" class="gt_row gt_right">0.56 (0.52, 0.61)</td>
+<td headers="GAIL" class="gt_row gt_right">0.57 (0.52, 0.61)</td>
 <td headers="Mirai" class="gt_row gt_right">0.75 (0.71, 0.79)</td></tr>
     <tr><td headers="years" class="gt_row gt_right">5</td>
-<td headers="GAIL" class="gt_row gt_right">0.56 (0.52, 0.61)</td>
+<td headers="GAIL" class="gt_row gt_right">0.57 (0.52, 0.61)</td>
 <td headers="Mirai" class="gt_row gt_right">0.75 (0.71, 0.79)</td></tr>
   </tbody>
   
@@ -5519,16 +5536,16 @@ glm(formula = !is.na(cumulus_reading) ~ year.mammo, family = "binomial",
 
 Coefficients:
              Estimate Std. Error z value Pr(&gt;|z|)    
-(Intercept) 990.85290  103.99532   9.528   &lt;2e-16 ***
-year.mammo   -0.49238    0.05166  -9.531   &lt;2e-16 ***
+(Intercept) 996.35859  104.61594   9.524   &lt;2e-16 ***
+year.mammo   -0.49511    0.05197  -9.527   &lt;2e-16 ***
 ---
 Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
 (Dispersion parameter for binomial family taken to be 1)
 
-    Null deviance: 821.86  on 615  degrees of freedom
-Residual deviance: 702.00  on 614  degrees of freedom
-AIC: 706
+    Null deviance: 815.06  on 609  degrees of freedom
+Residual deviance: 695.09  on 608  degrees of freedom
+AIC: 699.09
 
 Number of Fisher Scoring iterations: 4</code></pre>
 </div>
@@ -5567,20 +5584,20 @@ lm(formula = mirai_residuals ~ is.na(cumulus_reading) * cc_status,
 
 Residuals:
     Min      1Q  Median      3Q     Max 
--1.5188 -0.3784 -0.1293  0.2202  2.5107 
+-1.5293 -0.3760 -0.1293  0.2234  2.5086 
 
 Coefficients:
                                       Estimate Std. Error t value Pr(&gt;|t|)    
-(Intercept)                           0.007901   0.053091   0.149 0.881740    
-is.na(cumulus_reading)TRUE           -0.012901   0.067839  -0.190 0.849241    
-cc_status                             0.352703   0.084033   4.197  3.1e-05 ***
-is.na(cumulus_reading)TRUE:cc_status  0.413536   0.107223   3.857 0.000127 ***
+(Intercept)                           0.007901   0.053244   0.148 0.882078    
+is.na(cumulus_reading)TRUE           -0.012901   0.068035  -0.190 0.849669    
+cc_status                             0.354837   0.084544   4.197 3.11e-05 ***
+is.na(cumulus_reading)TRUE:cc_status  0.421946   0.108163   3.901 0.000107 ***
 ---
 Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-Residual standard error: 0.6349 on 612 degrees of freedom
-Multiple R-squared:  0.2058,    Adjusted R-squared:  0.202 
-F-statistic: 52.88 on 3 and 612 DF,  p-value: &lt; 2.2e-16</code></pre>
+Residual standard error: 0.6367 on 606 degrees of freedom
+Multiple R-squared:  0.2073,    Adjusted R-squared:  0.2034 
+F-statistic: 52.83 on 3 and 606 DF,  p-value: &lt; 2.2e-16</code></pre>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb122"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb122-1"><a href="#cb122-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Controls have same Mirai scores btw. PD and non-PD subsets.</span></span>
 <span id="cb122-2"><a href="#cb122-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Cases without PD readings (which are more recent) have higher Mirai scores than cases in PD subset.</span></span>
@@ -5595,20 +5612,20 @@ lm(formula = gail_residuals ~ is.na(cumulus_reading) * cc_status,
 
 Residuals:
      Min       1Q   Median       3Q      Max 
--0.91314 -0.20366 -0.06028  0.15642  1.33701 
+-0.91681 -0.20276 -0.05977  0.15571  1.33333 
 
 Coefficients:
                                       Estimate Std. Error t value Pr(&gt;|t|)  
-(Intercept)                          -0.025458   0.025786  -0.987   0.3239  
-is.na(cumulus_reading)TRUE            0.041567   0.032950   1.262   0.2076  
-cc_status                             0.080776   0.040815   1.979   0.0483 *
-is.na(cumulus_reading)TRUE:cc_status -0.004986   0.052078  -0.096   0.9238  
+(Intercept)                          -0.025458   0.025803  -0.987   0.3242  
+is.na(cumulus_reading)TRUE            0.041567   0.032971   1.261   0.2079  
+cc_status                             0.083621   0.040972   2.041   0.0417 *
+is.na(cumulus_reading)TRUE:cc_status -0.004156   0.052418  -0.079   0.9368  
 ---
 Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-Residual standard error: 0.3084 on 612 degrees of freedom
-Multiple R-squared:  0.01898,   Adjusted R-squared:  0.01417 
-F-statistic: 3.947 on 3 and 612 DF,  p-value: 0.008344</code></pre>
+Residual standard error: 0.3086 on 606 degrees of freedom
+Multiple R-squared:  0.02017,   Adjusted R-squared:  0.01532 
+F-statistic: 4.158 on 3 and 606 DF,  p-value: 0.006254</code></pre>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb124"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb124-1"><a href="#cb124-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Not seen with Gail.</span></span>
 <span id="cb124-2"><a href="#cb124-2" aria-hidden="true" tabindex="-1"></a></span>
@@ -5622,20 +5639,20 @@ lm(formula = study.entry.age ~ is.na(cumulus_reading) * cc_status,
 
 Residuals:
      Min       1Q   Median       3Q      Max 
--18.4210  -6.1378   0.9413   5.8375  20.8486 
+-18.4210  -6.1391   0.9724   5.8451  20.8486 
 
 Coefficients:
                                      Estimate Std. Error t value Pr(&gt;|t|)    
-(Intercept)                           61.8281     0.6308  98.017   &lt;2e-16 ***
-is.na(cumulus_reading)TRUE             1.1858     0.8060   1.471    0.142    
-cc_status                             -1.3616     0.9984  -1.364    0.173    
-is.na(cumulus_reading)TRUE:cc_status  -1.0507     1.2739  -0.825    0.410    
+(Intercept)                           61.8281     0.6314  97.924   &lt;2e-16 ***
+is.na(cumulus_reading)TRUE             1.1858     0.8068   1.470    0.142    
+cc_status                             -1.2640     1.0025  -1.261    0.208    
+is.na(cumulus_reading)TRUE:cc_status  -1.1420     1.2826  -0.890    0.374    
 ---
 Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-Residual standard error: 7.543 on 612 degrees of freedom
-Multiple R-squared:  0.02023,   Adjusted R-squared:  0.01542 
-F-statistic: 4.211 on 3 and 612 DF,  p-value: 0.005811</code></pre>
+Residual standard error: 7.55 on 606 degrees of freedom
+Multiple R-squared:  0.01945,   Adjusted R-squared:  0.0146 
+F-statistic: 4.007 on 3 and 606 DF,  p-value: 0.007683</code></pre>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb126"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb126-1"><a href="#cb126-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Does not differ.</span></span>
 <span id="cb126-2"><a href="#cb126-2" aria-hidden="true" tabindex="-1"></a></span>
@@ -5651,7 +5668,7 @@ F-statistic: 4.211 on 3 and 612 DF,  p-value: 0.005811</code></pre>
 
                CC status
 Manufacturer      0   1 &lt;NA&gt;
-  HOLOGIC, Inc. 223 151    0
+  HOLOGIC, Inc. 223 146    0
   LORAD           3   1    0
   &lt;NA&gt;            0   0    0
 
@@ -5659,7 +5676,7 @@ Manufacturer      0   1 &lt;NA&gt;
 
                CC status
 Manufacturer      0   1 &lt;NA&gt;
-  HOLOGIC, Inc. 141  94    0
+  HOLOGIC, Inc. 141  93    0
   LORAD           2   1    0
   &lt;NA&gt;            0   0    0
 
@@ -5678,15 +5695,15 @@ Manufacturer      0   1 &lt;NA&gt;
 
                     CC status
 Manufacturer           0   1 &lt;NA&gt;
-  Lorad Selenia      126  98    0
-  Selenia Dimensions 100  54    0
+  Lorad Selenia      126  95    0
+  Selenia Dimensions 100  52    0
   &lt;NA&gt;                 0   0    0
 
 , , PD available = TRUE
 
                     CC status
 Manufacturer           0   1 &lt;NA&gt;
-  Lorad Selenia      102  74    0
+  Lorad Selenia      102  73    0
   Selenia Dimensions  41  21    0
   &lt;NA&gt;                 0   0    0
 
@@ -5738,16 +5755,16 @@ glm(formula = factor(manuf_model) ~ is.na(cumulus_reading), family = "binomial",
 
 Coefficients:
                            Estimate Std. Error z value Pr(&gt;|z|)    
-(Intercept)                 -1.0433     0.1477  -7.065 1.61e-12 ***
-is.na(cumulus_reading)TRUE   0.6687     0.1810   3.694 0.000221 ***
+(Intercept)                 -1.0377     0.1478  -7.021  2.2e-12 ***
+is.na(cumulus_reading)TRUE   0.6634     0.1815   3.655 0.000258 ***
 ---
 Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
 (Dispersion parameter for binomial family taken to be 1)
 
-    Null deviance: 798.15  on 615  degrees of freedom
-Residual deviance: 784.01  on 614  degrees of freedom
-AIC: 788.01
+    Null deviance: 790.50  on 609  degrees of freedom
+Residual deviance: 776.67  on 608  degrees of freedom
+AIC: 780.67
 
 Number of Fisher Scoring iterations: 4</code></pre>
 </div>
@@ -5759,14 +5776,14 @@ lm(formula = mirai_residuals ~ cc_status * manuf_model, data = scores_and_rf_dat
 
 Residuals:
     Min      1Q  Median      3Q     Max 
--1.4109 -0.3787 -0.1530  0.2369  2.4823 
+-1.4143 -0.3790 -0.1527  0.2436  2.4788 
 
 Coefficients:
                                         Estimate Std. Error t value Pr(&gt;|t|)
-(Intercept)                             -0.04825    0.04206  -1.147   0.2518
-cc_status                                0.53796    0.06414   8.387 3.45e-16
-manuf_modelSelenia Dimensions            0.12628    0.06805   1.856   0.0640
-cc_status:manuf_modelSelenia Dimensions  0.26049    0.11115   2.344   0.0194
+(Intercept)                             -0.04825    0.04220  -1.143   0.2533
+cc_status                                0.54140    0.06479   8.357 4.41e-16
+manuf_modelSelenia Dimensions            0.12628    0.06826   1.850   0.0648
+cc_status:manuf_modelSelenia Dimensions  0.26687    0.11242   2.374   0.0179
                                            
 (Intercept)                                
 cc_status                               ***
@@ -5775,9 +5792,9 @@ cc_status:manuf_modelSelenia Dimensions *
 ---
 Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-Residual standard error: 0.6351 on 612 degrees of freedom
-Multiple R-squared:  0.2052,    Adjusted R-squared:  0.2013 
-F-statistic: 52.67 on 3 and 612 DF,  p-value: &lt; 2.2e-16</code></pre>
+Residual standard error: 0.6372 on 606 degrees of freedom
+Multiple R-squared:  0.2062,    Adjusted R-squared:  0.2023 
+F-statistic: 52.47 on 3 and 606 DF,  p-value: &lt; 2.2e-16</code></pre>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb147"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb147-1"><a href="#cb147-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Giving Selenia cases higher scores than Lorad cases;</span></span>
 <span id="cb147-2"><a href="#cb147-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Selenia controls also given higher scores than Lorad controls, but not as big of a differential as Selenia cases to Lorad cases.</span></span>
@@ -5873,14 +5890,14 @@ F-statistic: 52.67 on 3 and 612 DF,  p-value: &lt; 2.2e-16</code></pre>
 <pre><code>Setting direction: controls &lt; cases</code></pre>
 </div>
 <div class="cell-output cell-output-stdout">
-<pre><code>Area under the curve: 0.7715</code></pre>
+<pre><code>Area under the curve: 0.7732</code></pre>
 </div>
 <div class="cell-output cell-output-stderr">
 <pre><code>Setting levels: control = 0, case = 1
 Setting direction: controls &lt; cases</code></pre>
 </div>
 <div class="cell-output cell-output-stdout">
-<pre><code>95% CI: 0.7045-0.8386 (DeLong)
+<pre><code>95% CI: 0.7058-0.8406 (DeLong)
 
 
  [2009,2012)</code></pre>
@@ -5890,14 +5907,14 @@ Setting direction: controls &lt; cases</code></pre>
 Setting direction: controls &lt; cases</code></pre>
 </div>
 <div class="cell-output cell-output-stdout">
-<pre><code>Area under the curve: 0.7008</code></pre>
+<pre><code>Area under the curve: 0.6941</code></pre>
 </div>
 <div class="cell-output cell-output-stderr">
 <pre><code>Setting levels: control = 0, case = 1
 Setting direction: controls &lt; cases</code></pre>
 </div>
 <div class="cell-output cell-output-stdout">
-<pre><code>95% CI: 0.628-0.7736 (DeLong)
+<pre><code>95% CI: 0.6201-0.7681 (DeLong)
 
 
  [2014,2020]</code></pre>
@@ -5907,14 +5924,14 @@ Setting direction: controls &lt; cases</code></pre>
 Setting direction: controls &lt; cases</code></pre>
 </div>
 <div class="cell-output cell-output-stdout">
-<pre><code>Area under the curve: 0.7839</code></pre>
+<pre><code>Area under the curve: 0.7831</code></pre>
 </div>
 <div class="cell-output cell-output-stderr">
 <pre><code>Setting levels: control = 0, case = 1
 Setting direction: controls &lt; cases</code></pre>
 </div>
 <div class="cell-output cell-output-stdout">
-<pre><code>95% CI: 0.7166-0.8512 (DeLong)</code></pre>
+<pre><code>95% CI: 0.7148-0.8515 (DeLong)</code></pre>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb163"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb163-1"><a href="#cb163-1" aria-hidden="true" tabindex="-1"></a>temp <span class="sc">|&gt;</span></span>
 <span id="cb163-2"><a href="#cb163-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> mammoyear_approx, <span class="at">fill =</span> cumulus_reading_res_missing)) <span class="sc">+</span></span>
