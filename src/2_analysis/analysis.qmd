@@ -1089,7 +1089,20 @@ supp_table1 <- as.data.frame(correlation$tests) |>
       x < 0.001 ~ "<0.001",
       TRUE ~ sprintf("%.3f",x)
     )
-  })) |>
+  }))
+
+knitr::kable(
+  supp_table1,
+  format = "pipe",
+  col.names = c(
+    "**Risk Factor**",
+    "**Univariable Beta (95% CI)**", "**Univariable P Value**",
+    "**Multivariable Beta (95% CI)**", "**Multivariable P Value**"
+  ),
+  align = "lcccc"
+)
+
+gtsave(supp_table1 |>
   gt() |>
   cols_label(
     variable ~ md("**Risk Factor**"),
@@ -1105,11 +1118,7 @@ supp_table1 <- as.data.frame(correlation$tests) |>
   tab_spanner(
     label = md("*Multivariable*"),
     columns = c("beta_2", "p_value_2")
-  )
-
-supp_table1
-
-gtsave(supp_table1, "../../results/tables/supp_table_1.docx")
+  ), "../../results/tables/supp_table_1.docx")
 
 ```
 
@@ -1143,9 +1152,9 @@ supp_table_2 <- scores_and_rf_data$output |>
     stat_2 ~ "**Cases, N = {n}**"
   ), label ~ "**Characteristic**") |>
   bold_labels()
-  
+
 # Print in quarto
-supp_table_2
+gtsummary::as_kable(supp_table_2, format = "pipe")
 
 # DOCX
 gt::gtsave(gtsummary::as_gt(supp_table_2), filename = "../../results/tables/supp_table_2.docx")
@@ -1244,16 +1253,16 @@ for(years in 1:5){
 }
 
 supp_table3_gt <- supp_table3 |>
-  pivot_wider(names_from = score, values_from = AUC) |>
-  gt()
+  pivot_wider(names_from = score, values_from = AUC)
 
-gtsave(supp_table3_gt, "../../results/tables/supp_table_3.docx")
+gtsave(gt(supp_table3_gt), "../../results/tables/supp_table_3.docx")
 
 
 ```
 
 ```{r, results = "asis"}
 
-supp_table3_gt
+knitr::kable(supp_table3_gt, format = "pipe")
+
 
 ```
