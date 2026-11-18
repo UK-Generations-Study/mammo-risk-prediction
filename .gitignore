@@ -54,6 +54,8 @@ env/renv/staging/
 env/renv/cache/
 .DS_Store
 .Rproj.user
+*.Rproj
+.Rprofile
 .Rhistory
 .RData
 !env/.startup.sh

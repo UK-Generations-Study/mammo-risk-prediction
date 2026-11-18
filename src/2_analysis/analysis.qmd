@@ -1,20 +1,34 @@
 ---
 title: "Mammography AI Breast Cancer Risk Stratification in a UK Population"
-format:
-  html:
-    toc: true
-    toc-float: true
-    toc-depth: 10
-    toc-collapsed: false
-    html-table-processing: none
-    grid:
-      sidebar-width: 300px
-      body-width: 1500px
-      margin-width: 300px
-      gutter-width: 1.5rem
+format: gfm
+execute: 
+  echo: false
+editor: 
+  mode: source
+include-before-body:
+  text: |
+    <p><a href="https://github.com/UK-Generations-Study/mammo-risk-prediction/blob/main/README.md">← Back to repository README</a></p>
 ---
 
+::: {.content-hidden}
+
 ## Set-up
+
+### Set working directory
+```{r,eval=F}
+
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+```
+
+### Read in renv
+```{r}
+
+# Source activation of renv
+source("../../renv/activate.R")
+
+```
+
 
 ### Packages
 ```{r, warning=F, message=F}
@@ -32,7 +46,7 @@ library(crosstable)
 library(readxl)
 library(Hmisc)
 library(nftbart)
-library(BCRA) # GAIL SCORE
+library(BCRA)
 library(GGally)
 library(purrr)
 library(broom)
@@ -46,14 +60,6 @@ library(ggsankey)
 library(parallel)
 
 ```
-
-### Set working directory
-```{r,eval=F}
-
-setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
-
-```
-
 ### Read in data
 ```{r}
 
@@ -310,7 +316,11 @@ discrimination_table <- function(data, k){
 
 ```
 
+:::
+
 ## Analysis
+
+::: {.content-hidden}
 
 ### Calculate scores and return data
 ```{r, warning=F, message=F}
@@ -343,55 +353,6 @@ cancer.free.time <- scores_and_rf_data$output |>
   do(create_analytical_dataset(., cancer = "all_breast")) |>
   mutate(cancer.free.time = pmin(study.exit.age - study.entry.age, time.of.onset)) |>
   select(TCode, cancer.free.time)
-
-```
-
-### Create matching variables
-
-```{r}
-
-#' Function to append matching variables onto supplied data
-#' 
-#' params: data DataFrame with data
-#' 
-#' returns: Dataframe with matching variables appended
-#' 
-#' 
-#' Logic:
-#' Find all categories with at least one control: Categories1
-#' Find all categories with only cases: Categories2
-#' Expand Categories1 to capture all of Categories2
-
-build_matching_variables <- function(data) {
-  # # Create initial cutpoints
-  # match.mammo.age.cuts = 
-  #   with(data |> filter(is.finite(time.of.onset) | cc_status == 0),
-  #        seq(5*round(study.entry.age/5),
-  #            max_bound, by = 5))
-  # > all <- with(temp_cmls, as.integer(unique(cut(study.entry.age, breaks = seq(10, 110, by = 5), ordered_result = T))))
-  # > cases_only <- with(temp_cmls|>filter(cc_status == 1), as.integer(unique(cut(study.entry.age, breaks = seq(10, 110, by = 5), ordered_result = T))))
-  # > while(true)
-  # > setdiff(all, cases_only)
-  # > if setdiff is empty: break
-  # > for each of the elements in the setdiff:
-  # > # Find adjecent category from all
-  # > # If >1 adjacent category, then pick the one with more participants
-  # > # Assign new categories to each observation
-  # > That is our final grouping.
-}
-
-
-```
-
-```{r}
-
-# # Creating matching variables that were used in the matching process when matching cases and controls
-# # Categories have to be such that if cases are represented in the category - there has to be a control represented
-# scores_and_rf_data$output <- scores_and_rf_data$output |>
-#   merge(cancer.free.time, by = "TCode", all.x = T) |>
-#   merge(year.entry, by = "TCode", all.x = T) |>
-#   filter(time.of.onset > 1) |>
-#   do(build_matching_variables(.))
 
 ```
 
@@ -441,8 +402,12 @@ count_population(scores_and_rf_data$output)
 
 ```
 
+:::
+
 ### Figure 1
-Violin plots of risk factors and Mirai
+
+Distribution of 5-year Mirai AI-risk score for 241 breast cancer cases and 369 controls, and risk factors in the Gail model and Cumulus® percent mammographic density (PD) among controls. P-values are from mutually adjusted linear regression models with logit-transformed Mirai risk as the outcome. Abbreviations: BC – breast cancer.
+
 ```{r, warning=F, message=F}
 
 # Get p values
@@ -501,16 +466,16 @@ lvl_order <- c(
   # case/control
   "Control", "Case",
   # Age at mammography
-  "< 55 years", "55 - 65 years", "65 - 74 years", ">= 75 years",
+  "<55 years", "55-64 years", "65-74 years", "≥75 years",
   # Age at menarche
-  "< 11 years", "11 years", "12 years", "13 years", "> 13 years",
+  "<11 years", "11 years", "12 years", "13 years", ">13 years",
   # Parity
   "Nonparous", "Parous",
   # Age at 1st birth
-  "< 24 years", "24 - 26 years", "26 - 29 years", ">= 30 years",
+  "<24 years", "24-25 years", "26-29 years", "≥30 years",
   # Biopsies & relatives
   "Never", "Ever", "No", "Yes",
-  "(1.68,6.88]", "(6.88,12.4]", "(12.4,20.6]", "(20.6,46.9]"
+  "<6.9%", "6.9-12.4%", "12.4-20.6%", "≥20.6%"
   # # Race (if you include it)
   # "White", "Non-white"
 )
@@ -530,24 +495,24 @@ study.data <- scores_and_rf_data$output %>%
   ),
   AgeMenCat = factor(case_when(
     AgeMen == 99 ~ NA,
-    AgeMen < 11 ~ '< 11 years',
+    AgeMen < 11 ~ '<11 years',
     AgeMen==11 ~ '11 years',
     AgeMen==12 ~ '12 years',
     AgeMen ==13 ~ '13 years',
-    AgeMen >13 ~ '> 13 years'
+    AgeMen >13 ~ '>13 years'
   )),
   Age1stCat = factor(case_when(
     Age1st == 98 ~ NA,
-    Age1st < 24 ~ '< 24 years',
-    Age1st >= 24 & Age1st < 26 ~ '24 - 26 years',
-    Age1st >= 26 & Age1st < 30 ~ '26 - 29 years',
-    Age1st >= 30 ~ '>= 30 years'
+    Age1st < 24 ~ '<24 years',
+    Age1st >= 24 & Age1st < 26 ~ '24-25 years',
+    Age1st >= 26 & Age1st < 30 ~ '26-29 years',
+    Age1st >= 30 ~ '≥30 years'
   )),
   AgeCat = case_when(
-    T1 < 55 ~ '< 55 years',
-    T1 >= 55 & T1 < 65  ~ '55 - 65 years',
-    T1 >= 65 & T1 < 75 ~ '65 - 74 years',
-    T1 >= 75 ~ '>= 75 years'
+    T1 < 55 ~ '<55 years',
+    T1 >= 55 & T1 < 65  ~ '55-64 years',
+    T1 >= 65 & T1 < 75 ~ '65-74 years',
+    T1 >= 75 ~ '≥75 years'
     ),
   Parous = if_else(Age1st == 98, "Nonparous", "Parous")
   ) %>%
@@ -560,12 +525,12 @@ study.data <- scores_and_rf_data$output %>%
 cat_vars <- c("cc_status", "AgeCat", "AgeMenCat", "Age1stCat", "Parous", "N_Biop", "N_Rels", "Race","CumulusCat")
 var_labels <- c(
   cc_status = "Case/Control status",
-  AgeCat = "Age at mammography",
+  AgeCat = "Age at mammogram",
   AgeMenCat = "Age at menarche",
-  Age1stCat = "Age at 1st birth",
+  Age1stCat = "Age at first birth",
   Parous = "Parity",
-  N_Biop = "Breast biopsies",
-  N_Rels = "Family history",
+  N_Biop = "No. Breast biopsies",
+  N_Rels = "Family history of BC",
   CumulusCat = "Percent breast density, quartiles"
 )
 
@@ -583,7 +548,7 @@ study_recoded <- study.data %>%
                     labels = c("No", "Yes")),
     CumulusCat = factor(CumulusCat,
                         levels = c("(1.68,6.88]", "(6.88,12.4]", "(12.4,20.6]", "(20.6,46.9]"),
-                        labels = c("(1.68,6.88]", "(6.88,12.4]", "(12.4,20.6]", "(20.6,46.9]"))
+                        labels = c("<6.9%", "6.9-12.4%", "12.4-20.6%", "≥20.6%"))
   ) %>% ungroup()
 
 # Part A: Case/Control status block
@@ -607,7 +572,7 @@ long_controls <- study_recoded %>%
 violin_long <- bind_rows(long_casecontrol, long_controls) %>%
   mutate(
     variable = factor(variable, levels = c(
-      "cc_status","AgeCat","AgeMenCat","Age1stCat","Parous","N_Biop","N_Rels","CumulusCat","Race"
+      "cc_status","AgeCat","AgeMenCat","Parous","Age1stCat","N_Biop","N_Rels","CumulusCat","Race"
     )),
     level = fct_relevel(level, lvl_order)
     # If you want NA to appear last as "Missing", uncomment:
@@ -645,7 +610,7 @@ correlation_mv_plot <- correlation_mv |>
       TRUE ~ paste0("p=", sprintf("%.3f", `Pr(>|t|)`))
     ),
     
-    mirai_score_5y = 3,
+    mirai_score_5y = 40,
     
     
   ) |>
@@ -654,6 +619,11 @@ correlation_mv_plot <- correlation_mv |>
     level = (total_levels+1)/2,
     min_level = 0.75,
     max_level = total_levels + 0.25
+  ) |>
+  mutate(
+    variable = factor(variable, levels = c(
+      "cc_status","AgeCat","AgeMenCat","Parous","Age1stCat","N_Biop","N_Rels","CumulusCat","Race"
+    ))
   )
 
 few_data  <- dplyr::filter(violin_tagged, n_obs < 5)
@@ -674,7 +644,7 @@ p <- ggplot(violin_tagged, aes(x = level, y = mirai_score_5y)) +
   ) + # Violins for >= 5 observations
   geom_boxplot(
     data = many_data,
-    width = 0.15, linewidth = 0.5, outlier.shape = NA, 
+    width = 0.15, linewidth = 0.5, outlier.shape = NA,
   ) +
   geom_segment(
     data = correlation_mv_plot,
@@ -695,15 +665,16 @@ p <- ggplot(violin_tagged, aes(x = level, y = mirai_score_5y)) +
   ) +
   labs(x = NULL, y = "Mirai 5-year score") +
   theme_minimal(base_size = 12) +
-  coord_trans(y = "log10") +   # transform AFTER stats
-  scale_y_continuous(
-    breaks = c(0.01, 0.02, 0.05, 0.1, 0.2),
-    labels = scales::label_number(accuracy = 0.001, trim = TRUE),
-    # breaks = c(0.01*100, 0.02*100, 0.05*100, 0.1*100, 0.2*100),
-    # breaks = seq(0, 5),
-    # labels = scales::label_number(accuracy = 0.001*100, trim = TRUE),
-    # limits = c(0, 5)
-  ) +
+  # coord_trans(y = "log10") +   # transform AFTER stats
+  # scale_y_continuous(
+  #   breaks = c(0.01, 0.02, 0.05, 0.1, 0.2),
+  #   labels = scales::label_number(accuracy = 0.001, trim = TRUE),
+  #   # breaks = c(0.01*100, 0.02*100, 0.05*100, 0.1*100, 0.2*100),
+  #   # breaks = seq(0, 5),
+  #   # labels = scales::label_number(accuracy = 0.001*100, trim = TRUE),
+  #   # limits = c(0, 5)
+  # ) +
+  scale_y_log10(limits = c(1, 50)) +
   theme(
     panel.spacing = unit(1, "lines"),
     panel.border  = element_rect(color = "black", fill = NA, size = 1),
@@ -734,24 +705,26 @@ ggsave(
 
 ```
 
-```{r, fig.width=17, fig.height=4}
+```{r, fig.width=22, fig.height=4, warning=FALSE}
 p
 ```
 
 ### Table 1
-Descriptive table of the study population for the variables included in the GAIL model
-```{r}
+
+Characteristics of breast cancer cases and controls in the study sample. Abbreviations: BC – breast cancer, IQR – interquartile range.
+
+```{r, results = "asis"}
 
 # Calculate level order for the table
 lvl_order <- c(
   # case/control
   "Control", "Case",
   # Age at mammography
-  "< 55 years", "55 - 65 years", "65 - 74 years", ">= 75 years",
+  "< 55 years", "55 - 64 years", "65 - 74 years", "≥ 75 years",
   # Age at menarche
   "< 11 years", "11 years", "12 years", "13 years", "> 13 years",
   # Age at 1st birth
-  "< 24 years", "24 - 26 years", "26 - 29 years", ">= 30 years",
+  "< 24 years", "24 - 25 years", "26 - 29 years", "≥ 30 years",
   # Biopsies & relatives
   "0", "1+",
   # Race (if you include it)
@@ -817,7 +790,7 @@ table.one <-
       Age1st == 98 ~ "Nulliparous",
       Age1st == 99 ~ NA,
       Age1st < 24 ~ "<24",
-      Age1st < 26 ~ "24-26",
+      Age1st < 26 ~ "24-25",
       Age1st < 29 ~ "26-29",
       TRUE ~ "30+"
     ),
@@ -879,7 +852,7 @@ table.one <-
     digits = all_continuous() ~ 1,
     missing = "ifany"
   ) |>
-  modify_header(update = list(
+  modify_header(!!!list(
     stat_1 ~ "**Controls, N = {n}**",
     stat_2 ~ "**Cases, N = {n}**"
   ), label ~ "**Characteristic**") |>
@@ -895,7 +868,7 @@ table.one <-
 
 
 # Print in quarto
-table.one
+gtsummary::as_kable(table.one, format = "pipe")
 
 # DOCX
 gt::gtsave(gtsummary::as_gt(table.one), filename = "../../results/tables/table_1.docx")
@@ -903,7 +876,10 @@ gt::gtsave(gtsummary::as_gt(table.one), filename = "../../results/tables/table_1
 ```
 
 ### Table 2
-```{r, warning = F, message = F}
+
+Associations between Mirai, Gail and percent mammographic density (PD) with breast cancer risk and risk discrimination. ORs are reported per SD of the logit-transformed predictor and are adjusted for age at mammography and matching factors. In combined models, ORs are mutually adjusted for the other predictor. Relative risk calibration slope is presented for absolute risk scores. All model discrimination estimates were assessed through five-fold cross-validation for comparability.
+
+```{r, warning = F, message = F, results = "asis"}
 
 model <- list()
 or_estimations <- scores_and_rf_data$output
@@ -954,12 +930,13 @@ clusterExport(
 )
 
 # Load packages on workers
-clusterEvalQ(cl, {
+invisible(clusterEvalQ(cl, {
   library(dplyr)
   library(purrr)
   library(pROC)
-})
+}))
 
+# Run bootstrapping to get 95% CI
 boot_results <- parLapply(cl, seq_len(N), function(i) {
 
   set.seed(987 + i)
@@ -984,33 +961,70 @@ boot_results <- bind_rows(boot_results) |>
   select(model, set, all_of(paste0(rep(c("mirai_or", "gail_or", "cumulus_or", "auc"), each = 2), c("_lci", "_uci")))) |>
   distinct()
 
+# Calculate calibration slopes for Mirai and Gail in the complete study sample
+cal.slope.results.1 <- bind_rows(lapply(c("mirai_score_5y", "gail_score"), function(score){
+  
+  scores_and_rf_data$output |>
+    filter(cc_status == 1 | time.of.onset >= 5) |>
+    glm(formula = as.formula(paste0("cc_status ~ logit(", score, "/100) + match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age")), family = "binomial") |>
+    tbl_regression() |>
+    pluck("table_body") |>
+    filter(variable == paste0("logit(", score, "/100)")) |>
+    select(slope = estimate, slope_lci = conf.low, slope_uci = conf.high) |>
+    mutate(
+      model = if_else(score == "mirai_score_5y", "Model 1", "Model 2"),
+      set = "Superset"
+    )
+  
+}))
+
+# Calculate calibration slopes for Mirai in the cumulus sub sample
+cal.slope.results.2 <- bind_rows(lapply(c("mirai_score_5y"), function(score){
+  
+  scores_and_rf_data$output |>
+    filter(cc_status == 1 | time.of.onset >= 5) |>
+    filter(!is.na(cumulus_reading)) |>
+    glm(formula = as.formula(paste0("cc_status ~ logit(", score, "/100) + match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age")), family = "binomial") |>
+    tbl_regression() |>
+    pluck("table_body") |>
+    filter(variable == paste0("logit(", score, "/100)")) |>
+    select(slope = estimate, slope_lci = conf.low, slope_uci = conf.high) |>
+    mutate(
+      model = if_else(score == "mirai_score_5y", "Model 1", "Model 2"),
+      set = "Subset"
+    )
+  
+}))
+
 # Combine into one table
 table2_combined <- table2 |>
-  merge(boot_results, by = c("model", "set"))
+  merge(boot_results, by = c("model", "set")) |>
+  merge(bind_rows(cal.slope.results.1, cal.slope.results.2), by = c("model", "set"), all.x = T)
 
-for(score in c("mirai_or", "gail_or", "cumulus_or", "auc")){
+for(score in c("mirai_or", "gail_or", "cumulus_or", "auc", "slope")){
   table2_combined[[score]] <- paste0(sprintf("%.2f", table2_combined[[score]]), " (", sprintf("%.2f", table2_combined[[paste0(score, "_lci")]]), ", ", sprintf("%.2f", table2_combined[[paste0(score, "_uci")]]), ")")
 }
 
 table2_combined <- table2_combined |>
-  select(model, cc_split, mirai_or, gail_or, cumulus_or, auc) |>
+  select(model, cc_split, mirai_or, gail_or, cumulus_or, auc, slope) |>
   arrange(cc_split, model) |>
-  select(Model = model, `Cases/Controls` = cc_split, Mirai = mirai_or, Gail = gail_or, PD = cumulus_or, `AUC (95% CI)` = auc) |>
-  mutate(across(c(Mirai, Gail, PD), \(x) replace_values(x, "NaN (NA, NA)" ~ "-"))) |>
-  mutate(across(c(Mirai, Gail, PD), \(x) replace_values(x, "NA (NA, NA)" ~ "-"))) |>
-  gt()
+  select(Model = model, `Cases/Controls` = cc_split, Mirai = mirai_or, Gail = gail_or, PD = cumulus_or, `AUC (95% CI)` = auc, `Calibration Slope (95% CI)` = slope) |>
+  mutate(across(c(Mirai, Gail, PD, `Calibration Slope (95% CI)`), \(x) replace_values(x, "NaN (NA, NA)" ~ "-"))) |>
+  mutate(across(c(Mirai, Gail, PD, `Calibration Slope (95% CI)`), \(x) replace_values(x, "NA (NA, NA)" ~ "-")))
   
-table2_combined
+knitr::kable(table2_combined, format = "pipe")
 
-gtsave(table2_combined, "../../results/tables/table_2.docx")
+gtsave(gt(table2_combined), "../../results/tables/table_2.docx")
 
 ```
 
 ## Supplementary Material
 
 ### Supplementary Table 1
-Correlations of the MIRAI score with variables included in the GAIL model as well as mammographic density
-```{r}
+
+Associations of traditional breast cancer risk factors and Cumulus® percent mammographic density (PD) with 5-year Mirai risk among 369 controls. Multivariable estimates (beta) are mutually adjusted for the risk factors shown, with indicator variables to handle missingness. Mirai risk score was logit-transformed before analysis. Abbreviations: BC – breast cancer.
+
+```{r, results = "asis"}
 
 # Get data relevant for Table 2
 study.data <- scores_and_rf_data$output %>%
@@ -1046,7 +1060,6 @@ na_cols <- paste0(non_factor_preds, "_NA")
 all_preds <- c(preds, na_cols)
 formula_str <- paste(all_preds, collapse = "+")
 correlation_mv <- summary(lm(as.formula(paste('qlogis(mirai_score_5y/100)', "~", formula_str)), data=study.data.cleaned |> mutate(Age1st_NA = if_else(Parous == "Nonparous", 0, Age1st_NA))))
-total_rsquared = if_else(correlation_mv$r.squared < 0.001, "<0.001", sprintf("%.3f", correlation_mv$r.squared))
 correlation_mv <- as.data.frame(correlation_mv$coefficients)
 correlation_mv$variable <- rownames(correlation_mv)
 rownames(correlation_mv) <- NULL
@@ -1068,8 +1081,7 @@ supp_table1 <- as.data.frame(correlation$tests) |>
   mutate(
     upper.ci = statistic + qnorm(0.975)*se,
     lower.ci = statistic + qnorm(0.025)*se,
-    beta_1 = paste0(sprintf("%.2f", statistic), " (", sprintf("%.2f", lower.ci), ", ", sprintf("%.2f", upper.ci), ")"),
-    r.squared = if_else(r.squared < 0.01, "<0.01", sprintf("%.2f", r.squared))
+    beta_1 = paste0(sprintf("%.2f", statistic), " (", sprintf("%.2f", lower.ci), ", ", sprintf("%.2f", upper.ci), ")")
   ) |> 
   merge(correlation_mv, by = "variable") |>
   # Process to get MV beta value with CI
@@ -1078,85 +1090,52 @@ supp_table1 <- as.data.frame(correlation$tests) |>
     lower.ci = Estimate + qnorm(0.025)*`Std. Error`,
     beta_2 = paste0(sprintf("%.2f", Estimate), " (", sprintf("%.2f",lower.ci), ", ", sprintf("%.2f", upper.ci), ")")
   ) |>
-  mutate(variable = factor(variable, levels = c("T1", "N_Biop", "AgeMen", "Parous", "Age1st", "N_Rels", "cumulus_reading"), labels = c("Age at mammogram (years)", "No. benign breast biopsies","Age at menarche (years)", "Parity", "Age at first pregnancy (years)", "No. 1st-degree relatives with breast cancer", "Mammographic density"))) |>
+  mutate(variable = factor(variable, levels = c("T1", "N_Biop", "AgeMen", "Parous", "Age1st", "N_Rels", "cumulus_reading"), labels = c("Age at mammogram (years)", "No. breast biopsies","Age at menarche (years)", "Parity", "Age at first birth (years)", "Family history of BC", "Percent breast density"))) |>
   arrange(variable) |>
-  select(variable, beta_1, p_value_1 = p.value, r.squared, beta_2, p_value_2 = `Pr(>|t|)`) |>
+  select(variable, beta_1, p_value_1 = p.value, beta_2, p_value_2 = `Pr(>|t|)`) |>
   mutate(across(starts_with("p_value"), function(x){
     case_when(
       x < 0.001 ~ "<0.001",
       TRUE ~ sprintf("%.3f",x)
     )
-  })) |>
+  }))
+
+knitr::kable(
+  supp_table1,
+  format = "pipe",
+  col.names = c(
+    "**Risk Factor**",
+    "**Univariable Beta (95% CI)**", "**Univariable P Value**",
+    "**Multivariable Beta (95% CI)**", "**Multivariable P Value**"
+  ),
+  align = "lcccc"
+)
+
+gtsave(supp_table1 |>
   gt() |>
   cols_label(
     variable ~ md("**Risk Factor**"),
     beta_1 ~ md("**Beta (95% CI)**"),
     p_value_1 ~ md("**P Value**"),
-    r.squared ~ md("**R²**"),
     beta_2 ~ md("**Beta (95% CI)**"),
     p_value_2 ~ md("**P Value**")
   ) |>
   tab_spanner(
     label = md("*Univariable*"),
-    columns = c("beta_1", "p_value_1", "r.squared")
+    columns = c("beta_1", "p_value_1")
   ) |>
   tab_spanner(
     label = md("*Multivariable*"),
     columns = c("beta_2", "p_value_2")
-  ) |>
-  tab_footnote(
-    footnote = paste0("Multivariable R² = ", total_rsquared),
-    placement = "left"
-  )
-
-supp_table1
-
-gtsave(supp_table1, "../../results/tables/supp_table_1.docx")
+  ), "../../results/tables/supp_table_1.docx")
 
 ```
-
 
 ### Supplementary Table 2
-```{r}
 
-supp_table_2 <- scores_and_rf_data$output |>
-  select(cc_status, time.of.onset) |>
-  # mutate(time.of.onset = if_else(time.of.onset > 5, ">5 years", "<=5 years")) |>
-  mutate(time.of.onset = case_when(
-    time.of.onset <= 5 ~ "<=5 years",
-    is.finite(time.of.onset) ~ ">5 years",
-    TRUE ~ "Control"
-  )) |>
-  tbl_summary(
-    by = cc_status,   # stratify by CC status
-    label = list(
-      time.of.onset ~ "Time from mammogram to BC diagnosis (years)"
-    ),
-    statistic = list(
-      all_continuous() ~ "{median} ({IQR})",
-      all_categorical() ~ "{n} ({p}%)"
-    ),
-    digits = all_continuous() ~ 1,
-    missing = "ifany"
-  ) |>
-  add_n() |>
-  modify_header(update = list(
-    stat_1 ~ "**Controls, N = {n}**",
-    stat_2 ~ "**Cases, N = {n}**"
-  ), label ~ "**Characteristic**") |>
-  bold_labels()
-  
-# Print in quarto
-supp_table_2
+Discrimination of Mirai and Gail risk scores according to different prediction horizons. 
 
-# DOCX
-gt::gtsave(gtsummary::as_gt(supp_table_2), filename = "../../results/tables/supp_table_2.docx")
-# PNG (for README.md purposes)
-
-```
-
-### Supplementary Table 3
-```{r}
+```{r, include = F, results = "asis"}
 
 # Initialise Supplementary Table
 supp_table3 <- data.frame(score = character(0), years = numeric(0), AUC = character(0))
@@ -1172,15 +1151,14 @@ for(years in 1:5){
     merge(cc_selection, by = "TCode", all.x = T)
   
   # Tabulate request CC status with calculated CC status from time of mammogram
-  with(scores_and_rf_data$output, table(cc_status, is.finite(time.of.onset)))
+  # with(scores_and_rf_data$output, table(cc_status, is.finite(time.of.onset)))
   
   # Get cancer-free time from study entry for those included
-  cancer.free.time <- scores_and_rf_data$output |>
+  cancer.free.time <- invisible(scores_and_rf_data$output |>
     select(TCode) |>
     do(create_analytical_dataset(., cancer = "all_breast")) |>
     mutate(cancer.free.time = pmin(study.exit.age - study.entry.age, time.of.onset)) |>
-    select(TCode, cancer.free.time)
-  
+    select(TCode, cancer.free.time))
   
   # Creating matching variables that were used in the matching process when matching cases and controls
   # Categories have to be such that if cases are represented in the category - there has to be a control represented
@@ -1247,744 +1225,59 @@ for(years in 1:5){
 }
 
 supp_table3_gt <- supp_table3 |>
-  pivot_wider(names_from = score, values_from = AUC) |>
-  gt()
+  pivot_wider(names_from = score, values_from = AUC)
 
-supp_table3_gt
-
-gtsave(supp_table3_gt, "../../results/tables/supp_table_3.docx")
+gtsave(gt(supp_table3_gt), "../../results/tables/supp_table_2.docx")
 
 
 ```
 
-## Secondary Analysis
+```{r, results = "asis"}
 
+knitr::kable(supp_table3_gt, format = "pipe")
 
-### Relative risk calibration slope
-```{r}
-
-# Get relative risk calibration slope
-or_estimations |>
-  filter(cc_status == 1 | time.of.onset >= 5) |>
-  glm(formula = cc_status ~ logit(mirai_score_5y/100) + match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age, family = "binomial") |>
-  summary()
-
-or_estimations |>
-  filter(cc_status == 1 | time.of.onset >= 5) |>
-  glm(formula = cc_status ~ logit(gail_score/100) + match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age, family = "binomial") |>
-  summary()
 
 ```
 
-### Functions
 
-#### C-Index Generation
-```{r c_index_func, include=F}
+### Supplementary Table 3
 
-#' c_index_generation
-#' 
-#' Function to generate C-index and generate a pretty estimate for presentation
-#' 
-#' @param data data.frame that contains risk score column as well as time_to_failure (minimum of time to event and time to end of follow-up), and case (TRUE for diagnosed within follow-up, FALSE otherwise)
-#' @param variables list of variable names to calculate the C-index for
-#' 
-#' @returns object generated by survival::concordance function, with the addition of a pretty_estimate element
-#' 
-c_index_generation <- function(data, variables = list()){
-  
-  # Calculate C-index
-  fit <- data |>
-    mutate(
-      time_to_failure = pmin(time_to_diagnosis, time_to_end_fup),
-      delta = as.integer(case)
-    ) |> 
-    concordance(
-      object = as.formula(paste0("Surv(time_to_failure, delta) ~", paste(unlist(variables), sep = "+"))),
-      reverse = TRUE
-    )
-  
-  # Create pretty estimate
-  fit$pretty_estimate = paste0(
-    sprintf("%.3f", fit$concordance),
-    " (",
-    sprintf("%.3f", fit$concordance - 1.96*sqrt(fit$var)),
-    "-",
-    sprintf("%.3f", fit$concordance + 1.96*sqrt(fit$var)),
-    ")"
-  )
-  
-  return(fit)
-  
-}
+Breast cancer diagnosis status and time from index mammogram to diagnosis among cases and controls. Follow-up defined as the time from entry to the study to December 2022 for participants residing in England and the date of fourth follow-up questionnaire for all other participants. 
 
-```
+```{r, results = "asis"}
 
-#### E/O Calculation
-```{r, e_o_func, include = F}
-
-#' e_o_calculation
-#' 
-#' Function that calculates overall expected over observed number of cases for a score based on a given prediction horizon
-#' 
-#' @param data data.frame that contains the score of interest as well as case (TRUE for diagnosed within follow-up, FALSE otherwise), and time_to_end_fup (total follow-up time of participant)
-#' @param score name of the variable of interest to calculate E/O for
-#' @param pred_hor prediction horizon of the chosen score in years
-#' 
-#' @return Overall expected/observed number of cases, accounting for differing follow-up times
-#' 
-e_o_calculation <- function(data, score, pred_hor){
-  
-  observed <- sum(data$case)
-  expected <- sum(data[[score]])
-  total_py <- sum(pmin(data$time_to_end_fup, pred_hor))
-  total_prediction_time <- pred_hor*nrow(data)
-  
-  E_O <- (expected/total_prediction_time)/(observed/total_py)
-  
-  # Calculating confidence interval using Poisson CI formula
-  O_lci <- 0.5*qchisq(0.025, df = 2*observed)
-  O_uci <- 0.5*qchisq(0.975, df = 2*observed + 2)
-  
-  E_O_lci <- (expected/total_prediction_time)/(O_uci/total_py)
-  E_O_uci <- (expected/total_prediction_time)/(O_lci/total_py)
-  
-  E_O <- list(
-    observed = observed,
-    expected = expected,
-    total_py = total_py,
-    total_prediction_time = total_prediction_time,
-    estimate = E_O,
-    lci = E_O_lci,
-    uci = E_O_uci,
-    pretty_estimate = paste0(sprintf("%.3f", E_O), " (", sprintf("%.3f", E_O_lci), ", ", sprintf("%.3f", E_O_uci), ")")
-  )
-  
-  return(E_O)
-  
-}
-
-```
-
-#### Calibration Plot Generation
-```{r}
-
-calibration_plot <- function(data, varname, breaks, pred_hor){
-  
-  # Get breaks
-  if(is.list(breaks)){
-    breaks <- unlist(breaks)
-  } else {
-    breaks <- quantile(data[[varname]], probs = seq(0, 1, 1/breaks))
-  }
-  
-  # Clean data for plot
-  data <- data |>
-    mutate(
-      !!sym(paste0(varname, "_cat")) := cut(!!sym(score), breaks = breaks)
-    )
-  
-  # For each category, get data
-  plot_data <- lapply(unique(data[[paste0(varname, "_cat")]]), function(x){
-    
-    # Filter to category
-    data <- data |>
-      filter(!!sym(paste0(varname, "_cat")) == x)
-    
-    # Get E/O estimates
-    e_o_estimates <- e_o_calculation(data = data, score = varname, pred_hor = pred_hor)
-    
-    # Calculate data.frame
-    data <- data.frame(
-      expected = pred_hor * e_o_estimates$expected/e_o_estimates$total_prediction_time,
-      observed =  pred_hor * e_o_estimates$expected/(e_o_estimates$estimate * e_o_estimates$total_prediction_time),
-      observed_lci =  pred_hor * e_o_estimates$expected/(e_o_estimates$uci* e_o_estimates$total_prediction_time),
-      observed_uci =  pred_hor * e_o_estimates$expected/(e_o_estimates$lci*e_o_estimates$total_prediction_time)
-    )
-    
-    # Return dataframe
-    return(data)
-    
-  })
-  
-  # Combine plot_data and make plot
-  plot_data <- bind_rows(plot_data)
-  
-  padding = 1.15
-  est_range <- range(c(plot_data$observed, plot_data$expected), na.rm = TRUE)
-  est_span  <- diff(est_range)
-  if (est_span == 0) est_span <- est_range[1]  # guard against a single unique value
-  
-  y_limits <- c(
-    est_range[1] - est_span * (padding - 1),
-    est_range[2] + est_span * (padding - 1)
-  )
-  y_limits[1] <- max(y_limits[1], 0)
-  
-  # Flag which end(s) of each CI fall outside the frame
-  plot_data <- plot_data |>
-    mutate(
-      row_id = row_number(),
-      clip_upper = observed_uci > y_limits[2],
-      clip_lower = observed_lci < y_limits[1],
-      y_start = pmax(observed_lci, y_limits[1]),
-      y_end   = pmin(observed_uci, y_limits[2])
-    )
-  
-  # Base plot: points + reference line + frame
-  plot <- ggplot(plot_data, aes(x = expected, y = observed)) +
-    geom_abline(slope = 1, intercept = 0, colour = "black", linetype = "dashed") +
-    geom_point(colour = "red") +
-    coord_equal(ylim = y_limits, xlim = y_limits) +
-    theme_minimal() +
-    geom_rect(ymin = -Inf, ymax = Inf, xmin = -Inf, xmax = Inf, alpha = 0, colour = "black") +
-    xlab(paste0("Expected Cases per ", pred_hor, " years")) +
-    ylab(paste0("Observed Cases per ", pred_hor, " years")) 
-  
-  arrow_spec <- arrow(type = "closed", length = unit(0.08, "inches"))
-  cap_width = 0.04 * (y_limits[2] - y_limits[1])
-  
-  # 1. Intervals fully inside the frame: normal errorbar with flat caps
-  neither <- plot_data |> filter(!clip_upper & !clip_lower)
-  if (nrow(neither) > 0) {
-    plot <- plot + geom_errorbar(
-      data = neither,
-      aes(ymin = y_start, ymax = y_end),
-      width = cap_width, colour = "red"
-    )
-  }
-  
-  # 2. Upper end clipped only: segment with arrowhead at the top
-  upper_only <- plot_data |> filter(clip_upper & !clip_lower)
-  if (nrow(upper_only) > 0) {
-    plot <- plot +
-      geom_segment(
-        data = upper_only,
-        aes(x = expected, xend = expected, y = y_start, yend = y_end),
-        colour = "red", arrow = arrow_spec, lineend = "round"
-      ) +
-      geom_segment(
-        data = upper_only,
-        aes(x = expected - cap_width/2, xend = expected + cap_width/2,
-            y = y_start, yend = y_start),
-        colour = "red"
-      )
-  }
-  
-  # 3. Lower end clipped only: segment with arrowhead at the bottom
-  lower_only <- plot_data |> filter(clip_lower & !clip_upper)
-  if (nrow(lower_only) > 0) {
-    plot <- plot +
-      geom_segment(
-        data = lower_only,
-        aes(x = expected, xend = expected, y = y_end, yend = y_start),
-        colour = "red", arrow = arrow_spec, lineend = "round"
-      ) +
-      geom_segment(
-        data = lower_only,
-        aes(x = expected - cap_width/2, xend = expected + cap_width/2,
-            y = y_end, yend = y_end),
-        colour = "red"
-      )
-  }
-  
-  # 4. Both ends clipped: segment with arrowheads at both ends
-  both <- plot_data |> filter(clip_upper & clip_lower)
-  if (nrow(both) > 0) {
-    plot <- plot + geom_segment(
-      data = both,
-      aes(x = expected, xend = expected, y = y_start, yend = y_end),
-      colour = "red", arrow = arrow(type = "closed", length = unit(0.08, "inches"), ends = "both"),
-      lineend = "round"
-    )
-  }
-  
-  return(plot)
-    
-}
-
-```
-
-### Population definition
-```{r}
-
-# Read in population
-df_secondary <- read.csv("//rds/data/DGE/DUDGE/INCANEPI/Generations/Projects/mammo_risk_prediction/projects/prospective/populations/20260826/1c_baseline_analysis/study_population_mirai.csv") |>
-  mutate(AcquisitionDate = as.Date(AcquisitionDate, format = "%Y-%m-%d"))
-
-# Read in Mirai risk scores
-scores_mirai <- read.csv("//rds/data/DGE/DUDGE/INCANEPI/Generations/Projects/mammo_risk_prediction/data/prospective/backlog_2026_03/mirai/results/scores.csv") |>
-  mutate(TCode = gsub(pattern = "\\_.*", replacement = "", accession))
-
-# Create analytical dataset
-df_secondary_analysis <- create_analytical_dataset(df_secondary, years = NA, cancer = "all_breast", fup_start_date = "AcquisitionDate")
-
-# Get GAIL risk scores
-scores_gail <- GAIL_score_generation(df_secondary_analysis, years = 5)
-
-# Get cancer-free time from study entry for those included
-cancer.free.time.secondary <- df_secondary_analysis |>
-  select(TCode) |>
-  do(create_analytical_dataset(., cancer = "all_breast")) |>
-  mutate(cancer.free.time = pmin(study.exit.age - study.entry.age, time.of.onset)) |>
-  select(TCode, cancer.free.time)
-
-# Add Mirai and Gail scores to analytical dataset
-df_secondary_final <- df_secondary_analysis |>
-  merge(scores_mirai, by.x = c("TCode", "fupca_start_F", "Pseudo_StudyInstanceUID"), by.y = c("TCode", "acquisition_date", "study_id")) |>
-  merge(scores_gail$scores, by = "TCode") |>
-  mutate(
-    
-    gail_score = gail_score/100,
-    case = (time.of.onset < pmin(study.exit.age - study.entry.age, 5)),
-    time_to_diagnosis = time.of.onset,
-    time_to_end_fup = study.exit.age - study.entry.age
-    
+supp_table_2 <- scores_and_rf_data$output |>
+  select(cc_status, time.of.onset) |>
+  # mutate(time.of.onset = if_else(time.of.onset > 5, ">5 years", "<=5 years")) |>
+  mutate(time.of.onset = case_when(
+    time.of.onset <= 5 ~ "<=5 years",
+    is.finite(time.of.onset) ~ ">5 years",
+    TRUE ~ "Control"
+  )) |>
+  tbl_summary(
+    by = cc_status,   # stratify by CC status
+    label = list(
+      time.of.onset ~ "Time from mammogram to BC diagnosis (years)"
+    ),
+    statistic = list(
+      all_continuous() ~ "{median} ({IQR})",
+      all_categorical() ~ "{n} ({p}%)"
+    ),
+    digits = all_continuous() ~ 1,
+    missing = "ifany"
   ) |>
-  merge(cancer.free.time.secondary, by = "TCode", all.x = T) |>
-  merge(year.entry, by = "TCode", all.x = T) |>
-  mutate(
-    
-    # Age at mammogram
-    match.mammo.age = cut(study.entry.age, breaks = seq(10, 110, by = 5)),
+  add_n() |>
+  modify_header(!!!list(
+    stat_1 ~ "**Controls, N = {n}**",
+    stat_2 ~ "**Cases, N = {n}**"
+  ), label ~ "**Characteristic**") |>
+  bold_labels()
 
-    # Age at entry
-    match.entry.age = cut(AgeatEntry, breaks = seq(10, 110, by = 5)),
+# Print in quarto
+gtsummary::as_kable(supp_table_2, format = "pipe")
 
-    # Year of entry
-    match.year.entry = case_when(
-      Entry <= 2005 ~ "<=2005",
-      Entry >= 2008 ~ ">=2008",
-      TRUE ~ as.character(Entry)
-    ),
-
-    # Cancer free time from entry
-    match.cancer.free.time = case_when(
-      cancer.free.time < 10 ~ "[0,10)",
-      cancer.free.time <13 ~ "[10,13)",
-      TRUE ~ "[13,16)"
-    ),
-
-  )
+# DOCX
+gt::gtsave(gtsummary::as_gt(supp_table_2), filename = "../../results/tables/supp_table_3.docx")
+# PNG (for README.md purposes)
 
 ```
-
-### Summary Table
-```{r}
-
-# Initialise output
-table_list <- list()
-
-# Initialise output
-plots <- list()
-
-# Overall
-for(score in c("X5Y_risk", "gail_score")){
-
-  c_index <- c_index_generation(df_secondary_final, variables = list(score))$pretty_estimate
-    
-  e_o_overall <- e_o_calculation(df_secondary_final, score = score, pred_hor = 5)$pretty_estimate
-    
-  table_list[[length(table_list)+1]] <- data.frame(
-    score = score,
-    c_index = c_index,
-    e_o_overall = e_o_overall
-  )
-  
-  # Get plot title
-  plot_title <- if_else(score == "X5Y_risk", "Mirai", "Gail")
-   
-  # Generate plot
-  plots[[score]] <- calibration_plot(df_secondary_final, varname = score, breaks = 5, pred_hor = 5) +
-    labs(
-      title = plot_title
-    )
-
-}
-
-bind_rows(table_list) |>
-  mutate(score = if_else(score == "X5Y_risk", "Mirai", "Gail")) |>
-  select(Score = score, `C-Index` = c_index, `E/O Overall` = e_o_overall) |>
-  knitr::kable()
-
-for(plot in plots){
-  print(plot)
-}
-
-```
-
-### Relative risk slope calibration
-```{r}
-
-# Unadjusted
-df_secondary_final |>
-  filter(case | time_to_end_fup >= 5) |>
-  glm(formula = case ~ logit(X5Y_risk), family = "binomial") |>
-  summary()
-
-df_secondary_final |>
-  filter(case | time_to_end_fup >= 5) |>
-  glm(formula = case ~ logit(gail_score), family = "binomial") |>
-  summary()
-
-# Adjusted
-df_secondary_final |>
-  filter(case | time_to_end_fup >= 5) |>
-  glm(formula = case ~ logit(X5Y_risk) + match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age, family = "binomial") |>
-  summary()
-
-df_secondary_final |>
-  filter(case | time_to_end_fup >= 5) |>
-  glm(formula = case ~ logit(gail_score) + match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age, family = "binomial") |>
-  summary()
-
-# Residual only (refitted)
-model_secondary <- list()
-or_estimations_secondary <- df_secondary_final
-
-for(score in c("gail_score", "X5Y_risk")){
-  
-  # Create matching variables
-  temp_data <- or_estimations_secondary |>
-    filter(!is.na(!!sym(score))) |>
-    filter(!case)
-
-  # Fit model calculating score using matching variables
-  # Fitting model on controls that have the score measured
-  model_secondary[[score]] <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age")), data = temp_data)
-  
-  # Predict on whole dataset and calculate residuals
-  or_estimations_secondary[!is.na(or_estimations_secondary[[score]]), paste0(score, "_res")] <- predict(model_secondary[[score]], or_estimations_secondary[!is.na(or_estimations_secondary[[score]]),])
-  or_estimations_secondary[[paste0(score, "_res")]] <- qlogis(or_estimations_secondary[[score]]/100) - or_estimations_secondary[[paste0(score, "_res")]]
-  
-  # Calculate missingness indicator variable
-  or_estimations_secondary[[paste0(score, "_res_missing")]] <- is.na(or_estimations_secondary[[paste0(score, "_res")]])
-  or_estimations_secondary[[paste0(score, "_res")]][is.na(or_estimations_secondary[[paste0(score, "_res")]])] <- 0
-  
-  
-}
-
-or_estimations_secondary |>
-  filter(case | time_to_end_fup >= 5) |>
-  glm(formula = case ~ X5Y_risk_res, family = "binomial") |>
-  summary()
-
-or_estimations_secondary |>
-  filter(case | time_to_end_fup >= 5) |>
-  glm(formula = case ~ gail_score_res, family = "binomial") |>
-  summary()
-
-# Residuals (not refitted)
-model <- list()
-or_estimations <- scores_and_rf_data$output
-
-for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
-  
-  # Create matching variables
-  temp_data <- or_estimations |>
-    filter(!is.na(!!sym(score))) |>
-    filter(cc_status == 0)
-
-  # Fit model calculating score using matching variables
-  # Fitting model on controls that have the score measured
-  model[[score]] <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age")), data = temp_data)
-  
-}
-
-df_secondary_final_2 <- df_secondary_final |>
-  mutate(
-    
-    # Age at mammogram
-    match.mammo.age = cut(study.entry.age, breaks = seq(10, 110, by = 5)),
-
-    # Age at entry
-    match.entry.age = cut(AgeatEntry, breaks = seq(10, 110, by = 5)),
-
-    # Year of entry
-    match.year.entry = case_when(
-      Entry <= 2005 ~ "<=2005",
-      Entry >= 2008 ~ ">=2008",
-      TRUE ~ as.character(Entry)
-    ),
-    
-    # Cancer free time from entry
-    match.cancer.free.time = case_when(
-      cancer.free.time < 10 ~ "[0,10)",
-      cancer.free.time <13 ~ "[10,13)",
-      TRUE ~ "[13,16)"
-    )
-    
-  ) |>
-  mutate(
-
-    # For Cumulus
-    match.mammo.age = if_else(match.mammo.age == "(40,45]", "(45,50]", match.mammo.age),
-    match.mammo.age = if_else(match.mammo.age == "(30,35]", "(45,50]", match.mammo.age),
-    match.mammo.age = if_else(match.mammo.age == "(35,40]", "(45,50]", match.mammo.age),
-
-    # Age at entry
-    match.entry.age = if_else(match.entry.age == "(30,35]", "(35,40]", match.entry.age),
-    match.entry.age = if_else(match.entry.age == "(25,30]", "(35,40]", match.entry.age),
-    
-  )
-
-or_estimations_secondary <- df_secondary_final_2 |>
-  rename(mirai_score_5y = X5Y_risk)
-
-for(score in c("gail_score", "mirai_score_5y")){
-  
-  # Predict on whole dataset and calculate residuals
-  or_estimations_secondary[!is.na(or_estimations_secondary[[score]]), paste0(score, "_res")] <- predict(model[[score]], or_estimations_secondary[!is.na(or_estimations_secondary[[score]]),])
-  or_estimations_secondary[[paste0(score, "_res")]] <- qlogis(or_estimations_secondary[[score]]/100) - or_estimations_secondary[[paste0(score, "_res")]]
-  
-  # Calculate missingness indicator variable
-  or_estimations_secondary[[paste0(score, "_res_missing")]] <- is.na(or_estimations_secondary[[paste0(score, "_res")]])
-  or_estimations_secondary[[paste0(score, "_res")]][is.na(or_estimations_secondary[[paste0(score, "_res")]])] <- 0
-  
-  
-}
-
-or_estimations_secondary |>
-  filter(case | time_to_end_fup >= 5) |>
-  glm(formula = case ~ mirai_score_5y_res, family = "binomial") |>
-  summary()
-
-or_estimations_secondary |>
-  filter(case | time_to_end_fup >= 5) |>
-  glm(formula = case ~ gail_score_res, family = "binomial") |>
-  summary()
-
-```
-
-
-
-
-### Relative risk calibration by quintile (reference overall) (logistic regression)
-```{r}
-
-rr_calibration <- function(df, score){
-  
-  # Setup model data
-  model_data <- df_secondary_final |>
-    mutate(score_odds = !!sym(score)/(1-!!sym(score))) |>
-    filter(case | time_to_end_fup >= 5) |>
-    mutate(overall_expected_odds = mean(score_odds),
-           group = as.character(ntile(!!sym(score), 5))) |>
-    group_by(group) |>
-    mutate(
-      expected_or = mean(score_odds)/first(overall_expected_odds)
-    ) |>
-    ungroup() |>
-    bind_rows(df_secondary_final |> mutate(group = "0")) |>
-    filter(case | time_to_end_fup >= 5)
-  
-  # Calculate observed relative risk per quntile
-  observed_relative_risk <- model_data |>
-    glm(formula = case ~ group, family = "binomial") |>
-    tidy() |>
-    filter(term != "(Intercept)") |>
-    mutate(group = row_number()) |>
-    mutate(
-      lci = estimate - qnorm(0.975)*std.error,
-      uci = estimate + qnorm(0.975)*std.error,
-      estimate = exp(estimate),
-      lci = exp(lci),
-      uci = exp(uci)
-    )
-  
-  # Calculate expected relative risk per quntile
-  expected_relative_risk <- model_data |>
-    filter(group != "0") |>
-    group_by(group) |>
-    summarise(expected_rr = first(expected_or))
-  
-  # Merge to plot data
-  plot_data <- observed_relative_risk |>
-    merge(expected_relative_risk, by = "group")
-  
-  # Calculate y limits
-  y_limits <- range(plot_data$lci, plot_data$uci, plot_data$expected_rr)
-  
-  # Generate plot
-  p <- plot_data |>
-    ggplot(aes(x = expected_rr, y = estimate)) +
-    geom_abline(slope = 1, intercept = 0, colour = "black", linetype = "dashed") +
-    geom_point(colour = "red") +
-    coord_equal(ylim = y_limits, xlim = y_limits) +
-    scale_x_log10() +
-    scale_y_log10() +
-    geom_errorbar(
-      aes(ymin = lci, ymax = uci),
-      width = 0.05, colour = "red"
-    ) +
-    theme_minimal() +
-    geom_rect(ymin = -Inf, ymax = Inf, xmin = -Inf, xmax = Inf, alpha = 0, colour = "black")
-  
-  # Return plot
-  return(p)
-  
-}
-
-rr_calibration(df_secondary_final, "X5Y_risk")
-rr_calibration(df_secondary_final, "gail_score")
-
-```
-
-## Debugging
-
-### Full vs Subset
-
-```{r}
-
-# Calculate Mirai residuals
-model1 <- lm(as.formula(paste0("qlogis(mirai_score_5y/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output$mirai_score_5y) & scores_and_rf_data$output$cc_status == 0,])
-scores_and_rf_data$output$model1_pred <- NA
-scores_and_rf_data$output$model1_pred[!is.na(scores_and_rf_data$output$mirai_score_5y)] <- predict(model1, scores_and_rf_data$output[!is.na(scores_and_rf_data$output$mirai_score_5y),])
-scores_and_rf_data$output$mirai_residuals <- qlogis(scores_and_rf_data$output$mirai_score_5y/100) - scores_and_rf_data$output$model1_pred
-
-# Calculate Gail residuals
-model1 <- lm(as.formula(paste0("qlogis(gail_score/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age")), data = scores_and_rf_data$output[!is.na(scores_and_rf_data$output$gail_score) & scores_and_rf_data$output$cc_status == 0,])
-scores_and_rf_data$output$model1_pred <- NA
-scores_and_rf_data$output$model1_pred[!is.na(scores_and_rf_data$output$gail_score)] <- predict(model1, scores_and_rf_data$output[!is.na(scores_and_rf_data$output$gail_score),])
-scores_and_rf_data$output$gail_residuals <- qlogis(scores_and_rf_data$output$gail_score/100) - scores_and_rf_data$output$model1_pred
-
-# Earlier?
-scores_and_rf_data$output$year.mammo = (as.numeric(scores_and_rf_data$output$Entry) + scores_and_rf_data$output$study.entry.age - scores_and_rf_data$output$AgeatEntry)
-summary(glm(!is.na(cumulus_reading) ~ year.mammo, data = scores_and_rf_data$output, family='binomial')) # Yes
-
-# Time from mammo -> diag differential by PD missingness?
-summary(lm(time.of.onset ~ is.na(cumulus_reading), data = scores_and_rf_data$output %>% filter(cc_status == 1, is.finite(time.of.onset))))
-# Not differential.
-
-# Mirai
-summary(lm(mirai_residuals ~ is.na(cumulus_reading)*cc_status, data = scores_and_rf_data$output))
-# Controls have same Mirai scores btw. PD and non-PD subsets.
-# Cases without PD readings (which are more recent) have higher Mirai scores than cases in PD subset.
-
-# Gail
-summary(lm(gail_residuals ~ is.na(cumulus_reading)*cc_status, data = scores_and_rf_data$output))
-# Not seen with Gail.
-
-# Age
-summary(lm(study.entry.age ~ is.na(cumulus_reading)*cc_status, data = scores_and_rf_data$output))
-# Does not differ.
-
-# Manufacturer
-data_mammoimages <- read.csv("//rds/data/DGE/DUDGE/Shared/GENERATIONS/CoreData/v20230927/RDSCCMammoImages_v1.csv")
-data_mammoimages <- data_mammoimages %>% filter(SOPInstanceUID %in% eligible_dicom_uids$SOPInstanceUID) %>%
-  group_by(TCode) %>% dplyr::summarize(manuf = first(Manufacturer), manuf_model = first(ManuModelName))
-scores_and_rf_data$output <- scores_and_rf_data$output %>% left_join(data_mammoimages, by='TCode')
-# manufacturer
-table(Manufacturer=scores_and_rf_data$output$manuf, `CC status`=scores_and_rf_data$output$cc_status, `PD available`=!is.na(scores_and_rf_data$output$cumulus_reading),useNA="always")
-# model
-table(Manufacturer=scores_and_rf_data$output$manuf_model, `CC status`=scores_and_rf_data$output$cc_status, `PD available`=!is.na(scores_and_rf_data$output$cumulus_reading),useNA="always")
-
-# Model Lorad
-auc <- auc(roc(scores_and_rf_data$output$cc_status[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$manuf_model == "Lorad Selenia"], scores_and_rf_data$output$mirai_residuals[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$manuf_model == "Lorad Selenia"]))
-
-auc_ci <- unname(ci.auc(scores_and_rf_data$output$cc_status[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$manuf_model == "Lorad Selenia"], scores_and_rf_data$output$mirai_residuals[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$manuf_model == "Lorad Selenia"], method = "bootstrap"))
-
-paste0(sprintf("%.2f", auc), " (", sprintf("%.2f",auc_ci[1]), ", ", sprintf("%.2f", auc_ci[3]), ")")
-
-auc <- auc(roc(scores_and_rf_data$output$cc_status[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$manuf_model == "Selenia Dimensions"], scores_and_rf_data$output$mirai_residuals[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$manuf_model == "Selenia Dimensions"]))
-
-auc_ci <- unname(ci.auc(scores_and_rf_data$output$cc_status[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$manuf_model == "Selenia Dimensions"], scores_and_rf_data$output$mirai_residuals[!is.na(scores_and_rf_data$output[[score]]) & scores_and_rf_data$output$manuf_model == "Selenia Dimensions"], method = "bootstrap"))
-
-paste0(sprintf("%.2f", auc), " (", sprintf("%.2f",auc_ci[1]), ", ", sprintf("%.2f", auc_ci[3]), ")")
-
-summary(glm(factor(manuf_model) ~ is.na(cumulus_reading), data = scores_and_rf_data$output, family='binomial'))
-
-summary(lm(mirai_residuals ~ cc_status*manuf_model, data = scores_and_rf_data$output))
-# Giving Selenia cases higher scores than Lorad cases;
-# Selenia controls also given higher scores than Lorad controls, but not as big of a differential as Selenia cases to Lorad cases.
-
-# Is there more Selenia in non-PD subset? YES.
-# Mirai authors also saw worse performance on Lorad devices, compared to Selenia devices.
-# Lines up.
-
-# There are two types of Hologic devices: Lorad Selenia, released in 2002, and Selenia Dimensions, released in 2011.
-# Mirai was trained on mammograms from both devices.
-# The supplement of the Mirai paper shows that Mirai has a lower AUC on Lorad Selenia than Selenia Dimensions devices.
-
-# We also find that the discrimination of Mirai is poorer on Lorad Selenia devices (AUC 0.73) than on Selenia Dimensions (AUC 0.80) devices.
-# Formally, we find the Mirai score is associated with mammography device differential by case-control status (p=0.019)
-
-# We found that 74% of mammograms with available PD used a Lorad Selenia device and were on average from an earlier date (June 2012)
-# And only 59% of mammograms with missing PD used a Lorad Selenia device and were on average from a later date (Mar 2014)
-# This aligns with the release schedule of these two Hologic devices.
-
-# In conclusion, we found that screening mammograms with an available PD were older and were more likely to use Lorad Selenia devices, than screening mammograms with a missing PD. We find that the performance of Mirai is worse on Lorad Selenia devices. Given that PD was available on older mammograms, older mammograms more likely to be Lorad Selenia, and the poorer performance of Mirai on Lorad Selenia devices is a likely reason that we see a lower Mirai AUC on the PD subset.
-
-
-
-
-
-# The subset with missing PD readings were from mammograms from a later date (mean: Mar 2014)
-# The subset with with available PD readings were from mammograms from an earlier date (mean: June 2012)
-
-
-
-
-```
-
-
-## Additional Analysis
-
-### Analysis by year of mammogram
-```{r}
-
-model <- list()
-or_estimations <- scores_and_rf_data$output
-
-for(score in c("gail_score", "mirai_score_5y", "cumulus_reading")){
-  
-  # Create matching variables
-  temp_data <- or_estimations |>
-    filter(!is.na(!!sym(score))) |>
-    filter(cc_status == 0)
-
-  # Fit model calculating score using matching variables
-  # Fitting model on controls that have the score measured
-  model[[score]] <- lm(as.formula(paste0("qlogis(", score, "/100) ~ match.entry.age + match.year.entry + match.cancer.free.time + match.mammo.age")), data = temp_data)
-  
-  # Predict on whole dataset and calculate residuals
-  or_estimations[!is.na(or_estimations[[score]]), paste0(score, "_res")] <- predict(model[[score]], or_estimations[!is.na(or_estimations[[score]]),])
-  or_estimations[[paste0(score, "_res")]] <- qlogis(or_estimations[[score]]/100) - or_estimations[[paste0(score, "_res")]]
-  
-  # Calculate missingness indicator variable
-  or_estimations[[paste0(score, "_res_missing")]] <- is.na(or_estimations[[paste0(score, "_res")]])
-  or_estimations[[paste0(score, "_res")]][is.na(or_estimations[[paste0(score, "_res")]])] <- 0
-  
-  
-}
-
-temp <- or_estimations |>
-  mutate(
-    mammoyear_approx = as.numeric(Entry) + (study.entry.age - AgeatEntry),
-    mammoyear_group = cut2(mammoyear_approx, g = 3)
-  )
-
-for(i in unique(temp$mammoyear_group)){
-  
-  cat("\n\n", i)
-  
-  temp |>
-    filter(mammoyear_group == i) |>
-    roc(cc_status, mirai_score_5y_res) |>
-    auc() |>
-    print()
-  
-  temp |>
-    filter(mammoyear_group == i) |>
-    roc(cc_status, mirai_score_5y_res) |>
-    ci.auc() |>
-    print()
-  
-}
-
-temp |>
-  ggplot(aes(x = mammoyear_approx, fill = cumulus_reading_res_missing)) +
-  geom_histogram(alpha = 0.3, bins = 20, boundary = 0, colour = "black", position = "identity") +
-  theme_minimal()
-
-```
-
