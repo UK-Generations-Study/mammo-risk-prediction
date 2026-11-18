@@ -864,7 +864,7 @@ table.one <-
 
 
 # Print in quarto
-table.one
+gtsummary::as_kable(table.one, format = "pipe")
 
 # DOCX
 gt::gtsave(gtsummary::as_gt(table.one), filename = "../../results/tables/table_1.docx")
@@ -1003,12 +1003,11 @@ table2_combined <- table2_combined |>
   arrange(cc_split, model) |>
   select(Model = model, `Cases/Controls` = cc_split, Mirai = mirai_or, Gail = gail_or, PD = cumulus_or, `AUC (95% CI)` = auc, `Calibration Slope (95% CI)` = slope) |>
   mutate(across(c(Mirai, Gail, PD, `Calibration Slope (95% CI)`), \(x) replace_values(x, "NaN (NA, NA)" ~ "-"))) |>
-  mutate(across(c(Mirai, Gail, PD, `Calibration Slope (95% CI)`), \(x) replace_values(x, "NA (NA, NA)" ~ "-"))) |>
-  gt()
+  mutate(across(c(Mirai, Gail, PD, `Calibration Slope (95% CI)`), \(x) replace_values(x, "NA (NA, NA)" ~ "-")))
   
-table2_combined
+knitr::kable(table2_combined, format = "pipe")
 
-gtsave(table2_combined, "../../results/tables/table_2.docx")
+gtsave(gt(table2_combined), "../../results/tables/table_2.docx")
 
 ```
 
