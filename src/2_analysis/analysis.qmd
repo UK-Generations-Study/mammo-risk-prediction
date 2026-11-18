@@ -405,7 +405,9 @@ count_population(scores_and_rf_data$output)
 :::
 
 ### Figure 1
-Violin plots of risk factors and Mirai
+
+Distribution of 5-year Mirai AI-risk score for 241 breast cancer cases and 369 controls, and risk factors in the Gail model and Cumulus® percent mammographic density (PD) among controls. P-values are from mutually adjusted linear regression models with logit-transformed Mirai risk as the outcome. Abbreviations: BC – breast cancer.
+
 ```{r, warning=F, message=F}
 
 # Get p values
@@ -708,7 +710,9 @@ p
 ```
 
 ### Table 1
-Descriptive table of the study population for the variables included in the GAIL model
+
+Characteristics of breast cancer cases and controls in the study sample. Abbreviations: BC – breast cancer, IQR – interquartile range.
+
 ```{r, results = "asis"}
 
 # Calculate level order for the table
@@ -872,6 +876,9 @@ gt::gtsave(gtsummary::as_gt(table.one), filename = "../../results/tables/table_1
 ```
 
 ### Table 2
+
+Associations between Mirai, Gail and percent mammographic density (PD) with breast cancer risk and risk discrimination. ORs are reported per SD of the logit-transformed predictor and are adjusted for age at mammography and matching factors. In combined models, ORs are mutually adjusted for the other predictor. Relative risk calibration slope is presented for absolute risk scores. All model discrimination estimates were assessed through five-fold cross-validation for comparability.
+
 ```{r, warning = F, message = F, results = "asis"}
 
 model <- list()
@@ -910,7 +917,7 @@ set.seed(987)
 # Run table
 table2 <- discrimination_table(or_estimations, k=5)
 
-N <- 10
+N <- 10000
 
 # Create cluster
 cl <- makeCluster(detectCores() - 1)
@@ -1014,7 +1021,9 @@ gtsave(gt(table2_combined), "../../results/tables/table_2.docx")
 ## Supplementary Material
 
 ### Supplementary Table 1
-Correlations of the MIRAI score with variables included in the GAIL model as well as mammographic density
+
+Associations of traditional breast cancer risk factors and Cumulus® percent mammographic density (PD) with 5-year Mirai risk among 369 controls. Multivariable estimates (beta) are mutually adjusted for the risk factors shown, with indicator variables to handle missingness. Mirai risk score was logit-transformed before analysis. Abbreviations: BC – breast cancer.
+
 ```{r, results = "asis"}
 
 # Get data relevant for Table 2
@@ -1122,47 +1131,10 @@ gtsave(supp_table1 |>
 
 ```
 
-
 ### Supplementary Table 2
-```{r, results = "asis"}
 
-supp_table_2 <- scores_and_rf_data$output |>
-  select(cc_status, time.of.onset) |>
-  # mutate(time.of.onset = if_else(time.of.onset > 5, ">5 years", "<=5 years")) |>
-  mutate(time.of.onset = case_when(
-    time.of.onset <= 5 ~ "<=5 years",
-    is.finite(time.of.onset) ~ ">5 years",
-    TRUE ~ "Control"
-  )) |>
-  tbl_summary(
-    by = cc_status,   # stratify by CC status
-    label = list(
-      time.of.onset ~ "Time from mammogram to BC diagnosis (years)"
-    ),
-    statistic = list(
-      all_continuous() ~ "{median} ({IQR})",
-      all_categorical() ~ "{n} ({p}%)"
-    ),
-    digits = all_continuous() ~ 1,
-    missing = "ifany"
-  ) |>
-  add_n() |>
-  modify_header(!!!list(
-    stat_1 ~ "**Controls, N = {n}**",
-    stat_2 ~ "**Cases, N = {n}**"
-  ), label ~ "**Characteristic**") |>
-  bold_labels()
+Discrimination of Mirai and Gail risk scores according to different prediction horizons. 
 
-# Print in quarto
-gtsummary::as_kable(supp_table_2, format = "pipe")
-
-# DOCX
-gt::gtsave(gtsummary::as_gt(supp_table_2), filename = "../../results/tables/supp_table_2.docx")
-# PNG (for README.md purposes)
-
-```
-
-### Supplementary Table 3
 ```{r, include = F, results = "asis"}
 
 # Initialise Supplementary Table
@@ -1255,7 +1227,7 @@ for(years in 1:5){
 supp_table3_gt <- supp_table3 |>
   pivot_wider(names_from = score, values_from = AUC)
 
-gtsave(gt(supp_table3_gt), "../../results/tables/supp_table_3.docx")
+gtsave(gt(supp_table3_gt), "../../results/tables/supp_table_2.docx")
 
 
 ```
@@ -1264,5 +1236,48 @@ gtsave(gt(supp_table3_gt), "../../results/tables/supp_table_3.docx")
 
 knitr::kable(supp_table3_gt, format = "pipe")
 
+
+```
+
+
+### Supplementary Table 3
+
+Breast cancer diagnosis status and time from index mammogram to diagnosis among cases and controls. Follow-up defined as the time from entry to the study to December 2022 for participants residing in England and the date of fourth follow-up questionnaire for all other participants. 
+
+```{r, results = "asis"}
+
+supp_table_2 <- scores_and_rf_data$output |>
+  select(cc_status, time.of.onset) |>
+  # mutate(time.of.onset = if_else(time.of.onset > 5, ">5 years", "<=5 years")) |>
+  mutate(time.of.onset = case_when(
+    time.of.onset <= 5 ~ "<=5 years",
+    is.finite(time.of.onset) ~ ">5 years",
+    TRUE ~ "Control"
+  )) |>
+  tbl_summary(
+    by = cc_status,   # stratify by CC status
+    label = list(
+      time.of.onset ~ "Time from mammogram to BC diagnosis (years)"
+    ),
+    statistic = list(
+      all_continuous() ~ "{median} ({IQR})",
+      all_categorical() ~ "{n} ({p}%)"
+    ),
+    digits = all_continuous() ~ 1,
+    missing = "ifany"
+  ) |>
+  add_n() |>
+  modify_header(!!!list(
+    stat_1 ~ "**Controls, N = {n}**",
+    stat_2 ~ "**Cases, N = {n}**"
+  ), label ~ "**Characteristic**") |>
+  bold_labels()
+
+# Print in quarto
+gtsummary::as_kable(supp_table_2, format = "pipe")
+
+# DOCX
+gt::gtsave(gtsummary::as_gt(supp_table_2), filename = "../../results/tables/supp_table_3.docx")
+# PNG (for README.md purposes)
 
 ```
