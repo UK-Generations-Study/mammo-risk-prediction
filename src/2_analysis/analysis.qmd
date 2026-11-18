@@ -189,9 +189,10 @@ discrimination_table <- function(data, k){
     output_list[[paste0("fold_", fold)]] <- list()
   
     # Normalize train/test folds separately
+    cross_val_data_temp <- cross_val_data
     for(score in c("gail_score_res", "mirai_score_5y_res", "cumulus_reading_res")){
       train_sd <- cross_val_data |> filter(group != fold) |> dplyr::pull(paste0(score)) |> sd(na.rm = TRUE)
-      cross_val_data <- cross_val_data |>
+      cross_val_data_temp <- cross_val_data_temp |>
         mutate(
           !!sym(score) := case_when(
             group != fold ~ !!sym(score) / train_sd,
@@ -207,10 +208,10 @@ discrimination_table <- function(data, k){
         
         # Write and run glm with cc_status as outcome and residuals + missingness indicators as predictors
         formula_glm <- paste0("cc_status ~ ", paste0(risk_score_combinations[[comb]], "_res", collapse =  " + "))
-        test <- glm(as.formula(formula_glm), data = cross_val_data |> filter(group != fold), family = 'binomial')
+        test <- glm(as.formula(formula_glm), data = cross_val_data_temp |> filter(group != fold), family = 'binomial')
         
         # Get case/control split for table
-        cc_split <- paste0(cross_val_data |> filter(cc_status == 1) |> nrow(), "/", cross_val_data |> filter(cc_status == 0) |> nrow())
+        cc_split <- paste0(cross_val_data_temp |> filter(cc_status == 1) |> nrow(), "/", cross_val_data_temp |> filter(cc_status == 0) |> nrow())
         
         # Grab MIRAI coef
         mirai_or <- ifelse(
@@ -227,7 +228,7 @@ discrimination_table <- function(data, k){
         )
         
         # Calculate AUC
-        auc <- suppressMessages(cross_val_data |>
+        auc <- suppressMessages(cross_val_data_temp |>
           filter(group == fold) |>
           mutate(fitted.values = predict(test, newdata = pick(everything()), type = "response")) |>
           roc(cc_status, fitted.values, direction = "<") |>
@@ -248,10 +249,10 @@ discrimination_table <- function(data, k){
       
       # Write and run glm with cc_status as outcome and residuals + missingness indicators as predictors
       formula_glm <- paste0("cc_status ~ ", paste0(risk_score_combinations[[comb]], "_res", collapse =  " + "))
-      test <- glm(as.formula(formula_glm), data = cross_val_data |> filter(!is.na(cumulus_reading))|> filter(group != fold), family = 'binomial')
+      test <- glm(as.formula(formula_glm), data = cross_val_data_temp |> filter(!is.na(cumulus_reading))|> filter(group != fold), family = 'binomial')
       
       # Get case/control split for table
-      cc_split <- paste0(cross_val_data |> filter(!is.na(cumulus_reading)) |> filter(cc_status == 1) |> nrow(), "/", cross_val_data |> filter(!is.na(cumulus_reading)) |> filter(cc_status == 0) |> nrow())
+      cc_split <- paste0(cross_val_data_temp |> filter(!is.na(cumulus_reading)) |> filter(cc_status == 1) |> nrow(), "/", cross_val_data_temp |> filter(!is.na(cumulus_reading)) |> filter(cc_status == 0) |> nrow())
       
       # Grab MIRAI coef
       mirai_or <- ifelse(
@@ -275,7 +276,7 @@ discrimination_table <- function(data, k){
       )
 
       # Calculate AUC
-      auc <- suppressMessages(cross_val_data |>
+      auc <- suppressMessages(cross_val_data_temp |>
         filter(group == fold) |>
         filter(!is.na(cumulus_reading)) |>
         mutate(fitted.values = predict(test, newdata = pick(everything()), type = "response")) |>
@@ -917,7 +918,7 @@ set.seed(987)
 # Run table
 table2 <- discrimination_table(or_estimations, k=5)
 
-N <- 10000
+N <- 1000
 
 # Create cluster
 cl <- makeCluster(detectCores() - 1)
